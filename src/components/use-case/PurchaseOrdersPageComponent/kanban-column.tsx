@@ -13,15 +13,20 @@ import { KanbanColumn, KanbanTask } from "./types"
 type KanbanColumnProps = {
   column: KanbanColumn
   tasks: KanbanTask[]
+  dragEnabled: boolean
 }
 
-export function KanbanColumnComponent({ column, tasks }: KanbanColumnProps) {
+export function KanbanColumnComponent({
+  column,
+  tasks,
+  dragEnabled,
+}: KanbanColumnProps) {
   return (
-    <div className="bg-muted/50 flex h-full min-h-[420px] w-[360px] shrink-0 flex-col rounded-2xl p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="bg-muted/50 flex h-full min-h-[380px] w-[300px] shrink-0 flex-col rounded-2xl p-3">
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold">{column.title}</h2>
-          <Badge variant="outline" className="rounded-lg px-2 py-1 text-sm">
+          <h2 className="text-base font-semibold">{column.title}</h2>
+          <Badge variant="outline" className="rounded-lg px-2 py-0.5 text-xs">
             {tasks.length}
           </Badge>
         </div>
@@ -36,18 +41,23 @@ export function KanbanColumnComponent({ column, tasks }: KanbanColumnProps) {
         </div>
       </div>
 
-      <Droppable droppableId={column.id}>
+      <Droppable droppableId={column.id} isDropDisabled={!dragEnabled}>
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={cn(
-              "flex flex-1 flex-col gap-4 rounded-xl transition-colors",
+              "flex flex-1 flex-col gap-3 rounded-xl transition-colors",
               snapshot.isDraggingOver && "bg-background/70"
             )}
           >
             {tasks.map((task, index) => (
-              <KanbanTaskCard key={task.id} task={task} index={index} />
+              <KanbanTaskCard
+                key={task.id}
+                task={task}
+                index={index}
+                dragEnabled={dragEnabled}
+              />
             ))}
             {provided.placeholder}
           </div>

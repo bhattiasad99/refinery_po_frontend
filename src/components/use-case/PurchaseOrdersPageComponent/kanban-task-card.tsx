@@ -13,6 +13,7 @@ import { KanbanTask } from "./types"
 type KanbanTaskCardProps = {
   task: KanbanTask
   index: number
+  dragEnabled: boolean
 }
 
 const progressColorClassByValue = (progress: number) => {
@@ -21,23 +22,27 @@ const progressColorClassByValue = (progress: number) => {
   return "text-muted-foreground"
 }
 
-export function KanbanTaskCard({ task, index }: KanbanTaskCardProps) {
+export function KanbanTaskCard({
+  task,
+  index,
+  dragEnabled,
+}: KanbanTaskCardProps) {
   return (
-    <Draggable draggableId={task.id} index={index}>
+    <Draggable draggableId={task.id} index={index} isDragDisabled={!dragEnabled}>
       {(provided, snapshot) => (
         <Card
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           className={cn(
-            "gap-0 rounded-2xl py-0",
+            "gap-0 rounded-xl py-0",
             snapshot.isDragging && "ring-2 ring-primary/20 shadow-md"
           )}
         >
-          <CardContent className="space-y-4 p-5">
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold leading-snug">{task.title}</h3>
-              <p className="text-muted-foreground line-clamp-2 text-sm leading-relaxed">
+          <CardContent className="space-y-3 p-4">
+            <div className="space-y-1.5">
+              <h3 className="text-base font-semibold leading-snug">{task.title}</h3>
+              <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
                 {task.description}
               </p>
             </div>
@@ -48,7 +53,7 @@ export function KanbanTaskCard({ task, index }: KanbanTaskCardProps) {
                   <Badge
                     key={assignee}
                     variant="outline"
-                    className="size-8 rounded-full bg-muted p-0 text-xs font-semibold"
+                    className="size-7 rounded-full bg-muted p-0 text-[10px] font-semibold"
                   >
                     {assignee}
                   </Badge>
@@ -58,7 +63,7 @@ export function KanbanTaskCard({ task, index }: KanbanTaskCardProps) {
               <Badge
                 variant="outline"
                 className={cn(
-                  "rounded-xl px-2.5 py-1 text-sm font-medium",
+                  "rounded-xl px-2 py-0.5 text-xs font-medium",
                   progressColorClassByValue(task.progress)
                 )}
               >
@@ -70,17 +75,17 @@ export function KanbanTaskCard({ task, index }: KanbanTaskCardProps) {
             <Separator />
 
             <div className="flex items-center justify-between">
-              <Badge variant="outline" className="rounded-lg px-3 py-1 text-sm">
+              <Badge variant="outline" className="rounded-lg px-2.5 py-0.5 text-xs">
                 {task.priority}
               </Badge>
 
-              <div className="text-muted-foreground flex items-center gap-3 text-sm">
+              <div className="text-muted-foreground flex items-center gap-2.5 text-xs">
                 <span className="inline-flex items-center gap-1.5">
-                  <Paperclip className="size-4" />
+                  <Paperclip className="size-3.5" />
                   {task.attachmentsCount}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <MessageSquareText className="size-4" />
+                  <MessageSquareText className="size-3.5" />
                   {task.commentsCount}
                 </span>
               </div>

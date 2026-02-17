@@ -37,8 +37,8 @@ const data = {
       icon: IconDashboard,
     },
     {
-      title: "Pay Orders",
-      url: "/pay-orders",
+      title: "Purchase Orders",
+      url: "/purchase-orders",
       icon: IconListDetails,
     },
     {

@@ -13,6 +13,8 @@ import { KanbanColumnComponent } from "./kanban-column"
 import { initialKanbanBoard } from "./mock-data"
 import { KanbanBoardState, KanbanColumn, KanbanColumnId } from "./types"
 
+const KANBAN_DRAG_ENABLED = false
+
 const moveTaskWithinColumn = (
   column: KanbanColumn,
   sourceIndex: number,
@@ -28,7 +30,7 @@ const moveTaskWithinColumn = (
   }
 }
 
-export default function PayOrdersPageComponent() {
+export default function PurchaseOrdersPageComponent() {
   const [board, setBoard] = useState<KanbanBoardState>(initialKanbanBoard)
 
   const onDragEnd = (result: DropResult) => {
@@ -96,7 +98,7 @@ export default function PayOrdersPageComponent() {
   )
 
   return (
-    <Tabs defaultValue="board" className="gap-6">
+    <Tabs defaultValue="board" className="flex w-full max-w-full flex-col gap-6 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <TabsList>
           <TabsTrigger value="board">Board</TabsTrigger>
@@ -120,15 +122,20 @@ export default function PayOrdersPageComponent() {
         </div>
       </div>
 
-      <TabsContent value="board">
-        <DragDropContext onDragEnd={onDragEnd}>
+      <TabsContent value="board" className="min-w-0">
+        <DragDropContext
+          onDragEnd={
+            KANBAN_DRAG_ENABLED ? onDragEnd : (_result: DropResult) => undefined
+          }
+        >
           <div className="overflow-x-auto pb-2">
-            <div className="flex min-w-max gap-4">
+            <div className="flex min-w-max gap-3">
               {orderedColumns.map((column) => (
                 <KanbanColumnComponent
                   key={column.id}
                   column={column}
                   tasks={column.taskIds.map((taskId) => board.tasks[taskId])}
+                  dragEnabled={KANBAN_DRAG_ENABLED}
                 />
               ))}
             </div>
