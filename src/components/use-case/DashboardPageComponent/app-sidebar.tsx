@@ -29,6 +29,9 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { NavDocuments } from "../NavbarComponent/nav-documents"
+import { NavMain } from "../NavbarComponent/nav-main"
+import { NavUser } from "../NavbarComponent/nav-user"
+import { NavSecondary } from "../NavbarComponent/nav-secondary"
 
 const data = {
   user: {
