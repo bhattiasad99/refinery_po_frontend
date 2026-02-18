@@ -78,9 +78,10 @@ export default function CreatePurchaseOrderPreview({
               <Card>
                 <CardContent className="space-y-2 p-4 text-sm">
                   <p className="font-semibold">Step 1</p>
-                  <p>Supplier: {draft.step1.supplierName}</p>
-                  <p>Requested By: {draft.step1.requestedBy}</p>
-                  <p>Department: {draft.step1.department}</p>
+                  <p>Requested By (Department): {draft.step1.requestedByDepartment}</p>
+                  <p>Requested By (User): {draft.step1.requestedByUser}</p>
+                  <p>Budget Code: {draft.step1.budgetCode}</p>
+                  <p>Need By Date: {draft.step1.needByDate ?? "Not specified"}</p>
                 </CardContent>
               </Card>
 

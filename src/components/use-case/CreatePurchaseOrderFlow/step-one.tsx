@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
+import SearchableDropdown, {
+  type SearchableDropdownOption,
+} from "@/components/common/SearchableDropdown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,11 +27,38 @@ export default function CreatePurchaseOrderStepOne({
 }: CreatePurchaseOrderStepOneProps) {
   const router = useRouter()
 
-  const [supplierName, setSupplierName] = useState("")
-  const [requestedBy, setRequestedBy] = useState("")
-  const [department, setDepartment] = useState("")
+  const [requestedByDepartment, setRequestedByDepartment] = useState("")
+  const [requestedByUser, setRequestedByUser] = useState("")
+  const [budgetCode, setBudgetCode] = useState("")
+  const [needByDate, setNeedByDate] = useState("")
   const [isLoadingDraft, setIsLoadingDraft] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const departmentOptions: SearchableDropdownOption[] = [
+    { label: "Procurement Dept", value: "procurement-dept" },
+    { label: "Maintenance Dept", value: "maintenance-dept" },
+    { label: "Electrical Team", value: "electrical-team" },
+    { label: "Warehouse", value: "warehouse" },
+    { label: "Finance Dept", value: "finance-dept" },
+    { label: "Operations", value: "operations" },
+  ]
+
+  const userOptions: SearchableDropdownOption[] = [
+    { label: "Ayesha Khan", value: "ayesha-khan" },
+    { label: "Bilal Ahmed", value: "bilal-ahmed" },
+    { label: "Hassan Raza", value: "hassan-raza" },
+    { label: "Sana Malik", value: "sana-malik" },
+    { label: "Manager Operations", value: "manager-operations" },
+    { label: "Finance Dept", value: "finance-dept" },
+  ]
+
+  const budgetCodeOptions: SearchableDropdownOption[] = [
+    { label: "CC-1234", value: "CC-1234" },
+    { label: "CC-2314", value: "CC-2314" },
+    { label: "CC-4420", value: "CC-4420" },
+    { label: "CC-9901", value: "CC-9901" },
+    { label: "CC-7603", value: "CC-7603" },
+  ]
 
   useEffect(() => {
     const loadExistingDraft = async () => {
@@ -40,9 +70,19 @@ export default function CreatePurchaseOrderStepOne({
 
       const existingDraft = await getDraft(draftId)
       if (existingDraft) {
-        setSupplierName(existingDraft.step1.supplierName)
-        setRequestedBy(existingDraft.step1.requestedBy)
-        setDepartment(existingDraft.step1.department)
+        const stepOne = existingDraft.step1 as typeof existingDraft.step1 & {
+          requestedBy?: string
+          department?: string
+          budget?: string
+          latestBy?: string
+        }
+
+        setRequestedByDepartment(
+          stepOne.requestedByDepartment ?? stepOne.department ?? ""
+        )
+        setRequestedByUser(stepOne.requestedByUser ?? stepOne.requestedBy ?? "")
+        setBudgetCode(stepOne.budgetCode ?? stepOne.budget ?? "")
+        setNeedByDate(stepOne.needByDate ?? stepOne.latestBy ?? "")
       }
 
       setIsLoadingDraft(false)
@@ -56,9 +96,10 @@ export default function CreatePurchaseOrderStepOne({
 
     const draftId = initialDraftId ?? getActiveDraftId() ?? undefined
     const step1Payload = {
-      supplierName,
-      requestedBy,
-      department,
+      requestedByDepartment,
+      requestedByUser,
+      budgetCode,
+      needByDate: needByDate || undefined,
     }
 
     if (draftId) {
@@ -74,43 +115,59 @@ export default function CreatePurchaseOrderStepOne({
   }
 
   const isFormValid =
-    supplierName.trim().length > 0 &&
-    requestedBy.trim().length > 0 &&
-    department.trim().length > 0
+    requestedByDepartment.trim().length > 0 &&
+    requestedByUser.trim().length > 0 &&
+    budgetCode.trim().length > 0
 
   return (
     <StepShell
       title="Basic Request Information"
-      description="Step 1 captures the core request details before you move to subsequent pages."
+      description="Step 1 captures who is requesting this purchase order."
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="supplier-name">Supplier Name</Label>
-          <Input
-            id="supplier-name"
-            placeholder="e.g. Alpha Industrial Supplies"
-            value={supplierName}
-            onChange={(event) => setSupplierName(event.target.value)}
+          <Label htmlFor="requested-by-department">Requested By (Department)</Label>
+          <SearchableDropdown
+            id="requested-by-department"
+            value={requestedByDepartment}
+            onChange={setRequestedByDepartment}
+            options={departmentOptions}
+            placeholder="Select department"
+            searchPlaceholder="Search department..."
             disabled={isLoadingDraft}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="requested-by">Requested By</Label>
-          <Input
-            id="requested-by"
-            placeholder="e.g. Procurement Dept"
-            value={requestedBy}
-            onChange={(event) => setRequestedBy(event.target.value)}
+          <Label htmlFor="requested-by-user">Requested By (User Name)</Label>
+          <SearchableDropdown
+            id="requested-by-user"
+            value={requestedByUser}
+            onChange={setRequestedByUser}
+            options={userOptions}
+            placeholder="Select user"
+            searchPlaceholder="Search user..."
             disabled={isLoadingDraft}
           />
         </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="department">Department</Label>
+        <div className="space-y-2">
+          <Label htmlFor="budget-code">Budget Code</Label>
+          <SearchableDropdown
+            id="budget-code"
+            value={budgetCode}
+            onChange={setBudgetCode}
+            options={budgetCodeOptions}
+            placeholder="Select budget code"
+            searchPlaceholder="Search budget code..."
+            disabled={isLoadingDraft}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="need-by-date">Need By Date (Optional)</Label>
           <Input
-            id="department"
-            placeholder="e.g. Plant Operations"
-            value={department}
-            onChange={(event) => setDepartment(event.target.value)}
+            id="need-by-date"
+            type="date"
+            value={needByDate}
+            onChange={(event) => setNeedByDate(event.target.value)}
             disabled={isLoadingDraft}
           />
         </div>

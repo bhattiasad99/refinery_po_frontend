@@ -1,7 +1,8 @@
 export type StepOneData = {
-  supplierName: string
-  requestedBy: string
-  department: string
+  requestedByDepartment: string
+  requestedByUser: string
+  budgetCode: string
+  needByDate?: string
 }
 
 export type GenericStepData = {
