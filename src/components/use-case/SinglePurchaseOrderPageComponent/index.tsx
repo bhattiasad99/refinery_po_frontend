@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link"
 import { ArrowLeft, CalendarClock, CircleCheckBig, CircleDashed, CircleX } from "lucide-react"
 
@@ -56,15 +57,16 @@ const getTimelineIcon = (key: (typeof timelineOrder)[number], active: boolean) =
 
 const getTimelineMeta = (
     key: (typeof timelineOrder)[number],
-    entry: PurchaseOrder["timeline"][key]
+    entry: PurchaseOrder["timeline"][typeof key]
 ) => {
     if (!entry) return "Pending"
 
-    if (key === "created") return `By ${entry.createdBy}`
-    if (key === "submitted") return `By ${entry.submittedBy}`
-    if (key === "approved") return `By ${entry.approvedBy}`
-    if (key === "rejected") return `By ${entry.rejectedBy}`
-    return `By ${entry.fulfilledBy}`
+    if (key === "created") return `By ${(entry as any).createdBy}`
+    if (key === "submitted") return `By ${(entry as any).submittedBy}`
+    if (key === "approved") return `By ${(entry as any).approvedBy}`
+    if (key === "rejected") return `By ${(entry as any).rejectedBy}`
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return `By ${(entry as any).fulfilledBy}`
 }
 
 const SinglePurchaseOrderPageComponent = ({ id }: IProps) => {
@@ -248,7 +250,7 @@ const SinglePurchaseOrderPageComponent = ({ id }: IProps) => {
                                     <div>
                                         <p className="text-sm font-semibold capitalize">{step}</p>
                                         <p className="text-muted-foreground text-xs">
-                                            {isActive ? dateTimeFormatter.format(new Date(entry.time)) : "Not yet"}
+                                            {isActive ? dateTimeFormatter.format(new Date((entry as any).time)) : "Not yet"}
                                         </p>
                                         <p className="text-muted-foreground text-xs">{getTimelineMeta(step, entry)}</p>
                                     </div>
