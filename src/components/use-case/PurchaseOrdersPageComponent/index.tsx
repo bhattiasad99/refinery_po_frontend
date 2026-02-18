@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useMemo, useState } from "react"
 import { DragDropContext, DropResult } from "@hello-pangea/dnd"
 import { ListFilter, PlusCircle, Search } from "lucide-react"
@@ -115,9 +116,11 @@ export default function PurchaseOrdersPageComponent() {
             <ListFilter />
             Filters
           </Button>
-          <Button className="h-10 px-4">
-            <PlusCircle />
-            Add Board
+          <Button asChild className="h-10 px-4">
+            <Link href="/purchase-orders/new">
+              <PlusCircle />
+              Create Purchase Order
+            </Link>
           </Button>
         </div>
       </div>
