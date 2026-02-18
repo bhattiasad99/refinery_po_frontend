@@ -1,6 +1,6 @@
 
 import { ChartAreaInteractive } from "./chart-area-interactive"
-import { DataTable } from "./data-table"
+import { DataTable, dashboardColumns } from "./data-table"
 import { data } from "./data"
 import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-react"
@@ -100,7 +100,7 @@ export default function DashboardPageComponent() {
           <div>
             <ChartAreaInteractive />
           </div>
-          <DataTable data={data} />
+          <DataTable data={data} columns={dashboardColumns} />
         </div>
       </div>
     </div>

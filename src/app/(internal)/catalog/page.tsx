@@ -1,8 +1,8 @@
-import React from 'react'
+import CatalogPageComponent from "@/components/use-case/CatalogPageComponent"
 
 const CatalogPage = () => {
   return (
-    <div>CatalogPage</div>
+    <CatalogPageComponent />
   )
 }
 

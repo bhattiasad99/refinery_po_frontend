@@ -15,18 +15,18 @@ import { KanbanBoardState, KanbanColumn, KanbanColumnId } from "./types"
 
 const KANBAN_DRAG_ENABLED = false
 
-const moveTaskWithinColumn = (
+const movePurchaseOrderWithinColumn = (
   column: KanbanColumn,
   sourceIndex: number,
   destinationIndex: number
 ) => {
-  const nextTaskIds = [...column.taskIds]
-  const [movedTaskId] = nextTaskIds.splice(sourceIndex, 1)
-  nextTaskIds.splice(destinationIndex, 0, movedTaskId)
+  const nextPurchaseOrderIds = [...column.purchaseOrderIds]
+  const [movedPurchaseOrderId] = nextPurchaseOrderIds.splice(sourceIndex, 1)
+  nextPurchaseOrderIds.splice(destinationIndex, 0, movedPurchaseOrderId)
 
   return {
     ...column,
-    taskIds: nextTaskIds,
+    purchaseOrderIds: nextPurchaseOrderIds,
   }
 }
 
@@ -54,7 +54,7 @@ export default function PurchaseOrdersPageComponent() {
     if (!sourceColumn || !destinationColumn) return
 
     if (sourceColumnId === destinationColumnId) {
-      const reorderedColumn = moveTaskWithinColumn(
+      const reorderedColumn = movePurchaseOrderWithinColumn(
         sourceColumn,
         source.index,
         destination.index
@@ -70,11 +70,11 @@ export default function PurchaseOrdersPageComponent() {
       return
     }
 
-    // Move a task from one column to another.
-    const sourceTaskIds = [...sourceColumn.taskIds]
-    const destinationTaskIds = [...destinationColumn.taskIds]
-    const [movedTaskId] = sourceTaskIds.splice(source.index, 1)
-    destinationTaskIds.splice(destination.index, 0, movedTaskId)
+    // Move a purchase order from one column to another.
+    const sourcePurchaseOrderIds = [...sourceColumn.purchaseOrderIds]
+    const destinationPurchaseOrderIds = [...destinationColumn.purchaseOrderIds]
+    const [movedPurchaseOrderId] = sourcePurchaseOrderIds.splice(source.index, 1)
+    destinationPurchaseOrderIds.splice(destination.index, 0, movedPurchaseOrderId)
 
     setBoard((previousBoard) => ({
       ...previousBoard,
@@ -82,11 +82,11 @@ export default function PurchaseOrdersPageComponent() {
         ...previousBoard.columns,
         [sourceColumnId]: {
           ...sourceColumn,
-          taskIds: sourceTaskIds,
+          purchaseOrderIds: sourcePurchaseOrderIds,
         },
         [destinationColumnId]: {
           ...destinationColumn,
-          taskIds: destinationTaskIds,
+          purchaseOrderIds: destinationPurchaseOrderIds,
         },
       },
     }))
@@ -109,7 +109,7 @@ export default function PurchaseOrdersPageComponent() {
         <div className="flex w-full flex-wrap items-center gap-3 md:w-auto">
           <div className="relative w-full md:w-72">
             <Search className="text-muted-foreground pointer-events-none absolute left-3 top-2.5 size-4" />
-            <Input placeholder="Search tasks..." className="h-10 pl-9" />
+            <Input placeholder="Search purchase orders..." className="h-10 pl-9" />
           </div>
           <Button variant="outline" className="h-10 px-4">
             <ListFilter />
@@ -125,7 +125,7 @@ export default function PurchaseOrdersPageComponent() {
       <TabsContent value="board" className="min-w-0">
         <DragDropContext
           onDragEnd={
-            KANBAN_DRAG_ENABLED ? onDragEnd : (_result: DropResult) => undefined
+            KANBAN_DRAG_ENABLED ? onDragEnd : () => undefined
           }
         >
           <div className="overflow-x-auto pb-2">
@@ -134,7 +134,7 @@ export default function PurchaseOrdersPageComponent() {
                 <KanbanColumnComponent
                   key={column.id}
                   column={column}
-                  tasks={column.taskIds.map((taskId) => board.tasks[taskId])}
+                  purchaseOrders={column.purchaseOrderIds.map((purchaseOrderId) => board.purchaseOrders[purchaseOrderId])}
                   dragEnabled={KANBAN_DRAG_ENABLED}
                 />
               ))}

@@ -7,18 +7,18 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-import { KanbanTaskCard } from "./kanban-task-card"
-import { KanbanColumn, KanbanTask } from "./types"
+import { KanbanPurchaseOrderCard } from "./kanban-purchase-order-card"
+import { KanbanColumn, KanbanPurchaseOrder } from "./types"
 
 type KanbanColumnProps = {
   column: KanbanColumn
-  tasks: KanbanTask[]
+  purchaseOrders: KanbanPurchaseOrder[]
   dragEnabled: boolean
 }
 
 export function KanbanColumnComponent({
   column,
-  tasks,
+  purchaseOrders,
   dragEnabled,
 }: KanbanColumnProps) {
   return (
@@ -27,7 +27,7 @@ export function KanbanColumnComponent({
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold">{column.title}</h2>
           <Badge variant="outline" className="rounded-lg px-2 py-0.5 text-xs">
-            {tasks.length}
+            {purchaseOrders.length}
           </Badge>
         </div>
 
@@ -51,10 +51,10 @@ export function KanbanColumnComponent({
               snapshot.isDraggingOver && "bg-background/70"
             )}
           >
-            {tasks.map((task, index) => (
-              <KanbanTaskCard
-                key={task.id}
-                task={task}
+            {purchaseOrders.map((purchaseOrder, index) => (
+              <KanbanPurchaseOrderCard
+                key={purchaseOrder.id}
+                purchaseOrder={purchaseOrder}
                 index={index}
                 dragEnabled={dragEnabled}
               />

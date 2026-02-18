@@ -116,8 +116,10 @@ export const schema = z.object({
   reviewer: z.string(),
 })
 
+export type DashboardTableRow = z.infer<typeof schema>
+
 // Create a separate component for the drag handle
-function DragHandle({ id }: { id: number }) {
+function DragHandle({ id }: { id: UniqueIdentifier }) {
   const { attributes, listeners } = useSortable({
     id,
   })
@@ -136,7 +138,7 @@ function DragHandle({ id }: { id: number }) {
   )
 }
 
-const columns: ColumnDef<z.infer<typeof schema>>[] = [
+export const dashboardColumns: ColumnDef<DashboardTableRow>[] = [
   {
     id: "drag",
     header: () => null,
@@ -311,7 +313,11 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
   },
 ]
 
-function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
+function DraggableRow<TData extends { id: UniqueIdentifier }>({
+  row,
+}: {
+  row: Row<TData>
+}) {
   const { transform, transition, setNodeRef, isDragging } = useSortable({
     id: row.original.id,
   })
@@ -336,12 +342,18 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
   )
 }
 
-export function DataTable({
+export function DataTable<TData extends { id: UniqueIdentifier }>({
+  columns,
   data: initialData,
+  showViewTabs = true,
+  showAddAction = true,
 }: {
-  data: z.infer<typeof schema>[]
+  data: TData[]
+  columns: ColumnDef<TData>[]
+  showViewTabs?: boolean
+  showAddAction?: boolean
 }) {
-  const [data, setData] = React.useState(() => initialData)
+  const [data, setData] = React.useState<TData[]>(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
@@ -407,34 +419,40 @@ export function DataTable({
       className="w-full flex-col justify-start gap-6"
     >
       <div className="flex items-center justify-between px-4 lg:px-6">
-        <Label htmlFor="view-selector" className="sr-only">
-          View
-        </Label>
-        <Select defaultValue="outline">
-          <SelectTrigger
-            className="flex w-fit @4xl/main:hidden"
-            size="sm"
-            id="view-selector"
-          >
-            <SelectValue placeholder="Select a view" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="outline">Outline</SelectItem>
-            <SelectItem value="past-performance">Past Performance</SelectItem>
-            <SelectItem value="key-personnel">Key Personnel</SelectItem>
-            <SelectItem value="focus-documents">Focus Documents</SelectItem>
-          </SelectContent>
-        </Select>
-        <TabsList className="**:data-[slot=badge]:bg-muted-foreground/30 hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
-          <TabsTrigger value="outline">Outline</TabsTrigger>
-          <TabsTrigger value="past-performance">
-            Past Performance <Badge variant="secondary">3</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="key-personnel">
-            Key Personnel <Badge variant="secondary">2</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="focus-documents">Focus Documents</TabsTrigger>
-        </TabsList>
+        {showViewTabs ? (
+          <>
+            <Label htmlFor="view-selector" className="sr-only">
+              View
+            </Label>
+            <Select defaultValue="outline">
+              <SelectTrigger
+                className="flex w-fit @4xl/main:hidden"
+                size="sm"
+                id="view-selector"
+              >
+                <SelectValue placeholder="Select a view" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="outline">Outline</SelectItem>
+                <SelectItem value="past-performance">Past Performance</SelectItem>
+                <SelectItem value="key-personnel">Key Personnel</SelectItem>
+                <SelectItem value="focus-documents">Focus Documents</SelectItem>
+              </SelectContent>
+            </Select>
+            <TabsList className="**:data-[slot=badge]:bg-muted-foreground/30 hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
+              <TabsTrigger value="outline">Outline</TabsTrigger>
+              <TabsTrigger value="past-performance">
+                Past Performance <Badge variant="secondary">3</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="key-personnel">
+                Key Personnel <Badge variant="secondary">2</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="focus-documents">Focus Documents</TabsTrigger>
+            </TabsList>
+          </>
+        ) : (
+          <div />
+        )}
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -469,10 +487,12 @@ export function DataTable({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="sm">
-            <IconPlus />
-            <span className="hidden lg:inline">Add Section</span>
-          </Button>
+          {showAddAction && (
+            <Button variant="outline" size="sm">
+              <IconPlus />
+              <span className="hidden lg:inline">Add Section</span>
+            </Button>
+          )}
         </div>
       </div>
       <TabsContent
@@ -519,7 +539,7 @@ export function DataTable({
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={columns.length}
+                      colSpan={table.getVisibleLeafColumns().length}
                       className="h-24 text-center"
                     >
                       No results.
@@ -608,21 +628,27 @@ export function DataTable({
           </div>
         </div>
       </TabsContent>
-      <TabsContent
-        value="past-performance"
-        className="flex flex-col px-4 lg:px-6"
-      >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
-      <TabsContent value="key-personnel" className="flex flex-col px-4 lg:px-6">
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
-      <TabsContent
-        value="focus-documents"
-        className="flex flex-col px-4 lg:px-6"
-      >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
+      {showViewTabs && (
+        <TabsContent
+          value="past-performance"
+          className="flex flex-col px-4 lg:px-6"
+        >
+          <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
+        </TabsContent>
+      )}
+      {showViewTabs && (
+        <TabsContent value="key-personnel" className="flex flex-col px-4 lg:px-6">
+          <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
+        </TabsContent>
+      )}
+      {showViewTabs && (
+        <TabsContent
+          value="focus-documents"
+          className="flex flex-col px-4 lg:px-6"
+        >
+          <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
+        </TabsContent>
+      )}
     </Tabs>
   )
 }
