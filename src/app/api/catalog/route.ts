@@ -20,6 +20,19 @@ function parsePositiveInteger(value: string | null, fallback: number): number {
   return Math.floor(parsed)
 }
 
+function parseNonNegativeInteger(value: string | null, fallback: number): number {
+  if (!value) {
+    return fallback
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback
+  }
+
+  return Math.floor(parsed)
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const searchParams = request.nextUrl.searchParams
@@ -38,6 +51,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const category = searchParams.get("category")?.trim()
     const inStock = searchParams.get("inStock")?.trim().toLowerCase()
     const sort = searchParams.get("sort")?.trim()
+    const simulateDelayMs = Math.min(parseNonNegativeInteger(searchParams.get("simulateDelayMs"), 0), 3000)
 
     if (search) {
       params.set("search", search)
@@ -54,9 +68,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (sort) {
       params.set("sort", sort)
     }
-
-    // Keep loading skeletons visible long enough to feel intentional in demos.
-    params.set("simulateDelayMs", "420")
+    if (simulateDelayMs > 0) {
+      params.set("simulateDelayMs", String(simulateDelayMs))
+    }
 
     const response = await apiFetch(`/catalog?${params.toString()}`)
     const gatewayPayload = (await response.json()) as GatewayResponse<unknown>

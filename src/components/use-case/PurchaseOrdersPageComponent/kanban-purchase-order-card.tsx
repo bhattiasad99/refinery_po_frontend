@@ -45,6 +45,9 @@ export function KanbanPurchaseOrderCard({
                   {purchaseOrder.supplierName}
                 </h3>
                 <p className="text-muted-foreground text-xs">
+                  {purchaseOrder.poNumber ?? purchaseOrder.id}
+                </p>
+                <p className="text-muted-foreground text-xs">
                   {purchaseOrder.numberOfItems} Items
                 </p>
                 <p className="text-sm">

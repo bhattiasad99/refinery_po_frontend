@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { type PurchaseOrderLineItem, type StepTwoData } from "./draft-api"
 import { ItemSelectionModal } from "./item-selection-modal"
 import {
+  ApiError,
   buildStepTwoPayload,
   getPurchaseOrder,
   mapPurchaseOrderToStepTwo,
@@ -25,6 +27,7 @@ const emptyStepTwoData = (): StepTwoData => ({
   supplierName: "",
   items: [],
 })
+const SUPPLIER_MISMATCH_MESSAGE = "All items in a PO must come from the same supplier"
 
 export default function CreatePurchaseOrderStepTwo({
   draftId,
@@ -69,13 +72,6 @@ export default function CreatePurchaseOrderStepTwo({
   }, [draftId])
 
   const hasItems = useMemo(() => values.items.length > 0, [values.items])
-  const filteredCatalogItems = useMemo(() => {
-    const allCatalogItems = referenceData.catalogItems
-    if (!values.supplierName) return allCatalogItems
-
-    const supplierItems = referenceData.catalogBySupplier[values.supplierName] ?? []
-    return supplierItems.length > 0 ? supplierItems : allCatalogItems
-  }, [referenceData.catalogBySupplier, referenceData.catalogItems, values.supplierName])
 
   const onBack = () => {
     router.push(`/purchase-orders/new?draftId=${encodeURIComponent(draftId)}`)
@@ -93,7 +89,11 @@ export default function CreatePurchaseOrderStepTwo({
       await updatePurchaseOrder(draftId, buildStepTwoPayload(values))
       router.push(`/purchase-orders/new/step-3/${draftId}`)
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to save step 2")
+      if (error instanceof ApiError && error.status === 409) {
+        setErrorMessage(SUPPLIER_MISMATCH_MESSAGE)
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : "Failed to save step 2")
+      }
       setIsSubmitting(false)
     }
   }
@@ -104,8 +104,11 @@ export default function CreatePurchaseOrderStepTwo({
   }
 
   const onSaveItem = (lineItem: PurchaseOrderLineItem) => {
+    let hasSupplierMismatch = false
+
     setValues((previous) => {
       if (previous.supplierName && previous.supplierName !== lineItem.supplier) {
+        hasSupplierMismatch = true
         return previous
       }
 
@@ -129,6 +132,14 @@ export default function CreatePurchaseOrderStepTwo({
         items: [...previous.items, lineItem],
       }
     })
+
+    if (hasSupplierMismatch) {
+      setErrorMessage(SUPPLIER_MISMATCH_MESSAGE)
+      toast.error(SUPPLIER_MISMATCH_MESSAGE)
+      return
+    }
+
+    setErrorMessage(null)
   }
 
   const onDeleteItem = (lineItemId: string) => {
@@ -149,14 +160,14 @@ export default function CreatePurchaseOrderStepTwo({
   const supplierDisplayText = values.supplierName || "No Supplier Added, please add items"
   const selectableCatalogItems = useMemo(
     () =>
-      filteredCatalogItems.filter((catalogItem) => {
+      referenceData.catalogItems.filter((catalogItem) => {
         if (editingItem?.catalogItemId === catalogItem.id) return true
 
         return !values.items.some(
           (lineItem) => lineItem.catalogItemId === catalogItem.id
         )
       }),
-    [editingItem?.catalogItemId, filteredCatalogItems, values.items]
+    [editingItem?.catalogItemId, referenceData.catalogItems, values.items]
   )
 
   return (
@@ -216,6 +227,7 @@ export default function CreatePurchaseOrderStepTwo({
           open={isItemModalOpen}
           onOpenChange={setIsItemModalOpen}
           catalogItems={selectableCatalogItems}
+          lockedSupplierName={values.supplierName}
           initialLineItem={editingItem}
           onSave={onSaveItem}
         />

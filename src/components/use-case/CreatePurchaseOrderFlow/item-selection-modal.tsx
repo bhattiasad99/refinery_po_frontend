@@ -29,9 +29,11 @@ type ItemSelectionModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   catalogItems: CatalogItem[]
+  lockedSupplierName?: string
   initialLineItem?: PurchaseOrderLineItem | null
   onSave: (lineItem: PurchaseOrderLineItem) => void
 }
+const SUPPLIER_MISMATCH_MESSAGE = "All items in a PO must come from the same supplier"
 
 const priceFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -54,10 +56,22 @@ const createLineItemFromCatalog = (
   unitPrice: catalogItem.priceUsd,
 })
 
+export function isCatalogItemSupplierCompatible(
+  catalogSupplier: string,
+  lockedSupplierName?: string,
+  editingCatalogItemId?: string,
+  catalogItemId?: string,
+): boolean {
+  if (!lockedSupplierName) return true
+  if (editingCatalogItemId && catalogItemId === editingCatalogItemId) return true
+  return catalogSupplier === lockedSupplierName
+}
+
 export function ItemSelectionModal({
   open,
   onOpenChange,
   catalogItems,
+  lockedSupplierName,
   initialLineItem,
   onSave,
 }: ItemSelectionModalProps) {
@@ -71,6 +85,7 @@ export function ItemSelectionModal({
     () => catalogItems.find((catalogItem) => catalogItem.id === selectedCatalogItemId) ?? null,
     [catalogItems, selectedCatalogItemId]
   )
+  const hasLockedSupplier = Boolean(lockedSupplierName)
 
   const parsedQuantity = Number(quantity)
   const validQuantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0
@@ -111,11 +126,25 @@ export function ItemSelectionModal({
             </SelectTrigger>
             <SelectContent>
               {catalogItems.length > 0 ? (
-                catalogItems.map((catalogItem) => (
-                  <SelectItem key={catalogItem.id} value={catalogItem.id}>
-                    {catalogItem.name}
-                  </SelectItem>
-                ))
+                catalogItems.map((catalogItem) => {
+                  const supplierMismatch = !isCatalogItemSupplierCompatible(
+                    catalogItem.supplier,
+                    lockedSupplierName,
+                    initialLineItem?.catalogItemId,
+                    catalogItem.id
+                  )
+
+                  return (
+                    <SelectItem
+                      key={catalogItem.id}
+                      value={catalogItem.id}
+                      disabled={supplierMismatch}
+                    >
+                      {catalogItem.name} ({catalogItem.supplier}
+                      {supplierMismatch ? " - incompatible" : ""})
+                    </SelectItem>
+                  )
+                })
               ) : (
                 <div className="text-muted-foreground px-2 py-1.5 text-sm">
                   No catalog items available.
@@ -123,6 +152,11 @@ export function ItemSelectionModal({
               )}
             </SelectContent>
           </Select>
+          {hasLockedSupplier ? (
+            <p className="text-sm text-amber-700">
+              {SUPPLIER_MISMATCH_MESSAGE} Current supplier: {lockedSupplierName}
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">

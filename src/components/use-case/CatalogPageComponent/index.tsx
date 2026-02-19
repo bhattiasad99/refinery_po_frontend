@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Filter } from "lucide-react"
+import { Eye, Filter } from "lucide-react"
 
 import ControlledSheet from "@/components/common/ControlledSheet"
 import { Badge } from "@/components/ui/badge"
@@ -110,6 +110,19 @@ function parseSort(value: string | null): CatalogSortOption {
   return "price_asc"
 }
 
+function parsePositiveInteger(value: string | null, fallback: number): number {
+  if (!value) {
+    return fallback
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback
+  }
+
+  return Math.floor(parsed)
+}
+
 function buildStateUrl(
   pathname: string,
   state: {
@@ -117,6 +130,7 @@ function buildStateUrl(
     category: string
     inStock: boolean | null
     sort: CatalogSortOption
+    page: number
   }
 ): string {
   const params = new URLSearchParams()
@@ -130,6 +144,9 @@ function buildStateUrl(
     params.set("inStock", String(state.inStock))
   }
   params.set("sort", state.sort)
+  if (state.page > 1) {
+    params.set("page", String(state.page))
+  }
 
   const queryString = params.toString()
   return queryString ? `${pathname}?${queryString}` : pathname
@@ -156,6 +173,7 @@ export default function CatalogPageComponent() {
 
   const [searchInput, setSearchInput] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [simulateDelayMs, setSimulateDelayMs] = useState(800)
   const [sort, setSort] = useState<CatalogSortOption>("price_asc")
   const [categoryOptions, setCategoryOptions] = useState<string[]>([])
   const [supplierOptions, setSupplierOptions] = useState<string[]>([])
@@ -165,6 +183,7 @@ export default function CatalogPageComponent() {
   const [categoryDraft, setCategoryDraft] = useState("")
   const [inStockDraft, setInStockDraft] = useState<InStockDraftOption>("all")
   const [createPoSourceItem, setCreatePoSourceItem] = useState<CatalogRowForQuickPo | null>(null)
+  const shouldSimulateDelayOnNextFetchRef = useRef(false)
 
   useEffect(() => {
     const urlParams = new URLSearchParams(searchParamsString)
@@ -172,6 +191,7 @@ export default function CatalogPageComponent() {
     const categoryValue = urlParams.get("category")?.trim() ?? ""
     const inStockValue = parseInStock(urlParams.get("inStock"))
     const sortValue = parseSort(urlParams.get("sort"))
+    const pageValue = parsePositiveInteger(urlParams.get("page"), 1)
 
     setSearchInput(qValue)
     setDebouncedSearch(qValue)
@@ -180,17 +200,21 @@ export default function CatalogPageComponent() {
     setCategoryDraft(categoryValue)
     setInStockDraft(toInStockDraft(inStockValue))
     setSort(sortValue)
-    setPage(1)
+    setPage(pageValue)
   }, [searchParamsString])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setDebouncedSearch(searchInput.trim())
-      setPage(1)
+      const nextDebouncedSearch = searchInput.trim()
+      if (nextDebouncedSearch !== debouncedSearch) {
+        shouldSimulateDelayOnNextFetchRef.current = true
+        setDebouncedSearch(nextDebouncedSearch)
+        setPage(1)
+      }
     }, 380)
 
     return () => window.clearTimeout(timer)
-  }, [searchInput])
+  }, [debouncedSearch, searchInput])
 
   useEffect(() => {
     const currentParams = new URLSearchParams(searchParamsString)
@@ -199,18 +223,20 @@ export default function CatalogPageComponent() {
       category: currentParams.get("category")?.trim() ?? "",
       inStock: parseInStock(currentParams.get("inStock")),
       sort: parseSort(currentParams.get("sort")),
+      page: parsePositiveInteger(currentParams.get("page"), 1),
     })
     const nextUrl = buildStateUrl(pathname, {
       search: debouncedSearch,
       category: appliedCategory.trim(),
       inStock: appliedInStock,
       sort,
+      page,
     })
 
     if (nextUrl !== currentCanonicalUrl) {
       router.replace(nextUrl, { scroll: false })
     }
-  }, [appliedCategory, appliedInStock, debouncedSearch, pathname, router, searchParamsString, sort])
+  }, [appliedCategory, appliedInStock, debouncedSearch, page, pathname, router, searchParamsString, sort])
 
   const totalPages = useMemo(() => Math.max(Math.ceil(total / limit), 1), [total, limit])
   const isInitialLoad = isLoading && !hasLoadedOnce
@@ -223,6 +249,9 @@ export default function CatalogPageComponent() {
       setErrorMessage(null)
 
       try {
+        const shouldSimulateDelay = shouldSimulateDelayOnNextFetchRef.current
+        shouldSimulateDelayOnNextFetchRef.current = false
+
         const params = new URLSearchParams({
           page: String(page),
           limit: String(limit),
@@ -237,6 +266,9 @@ export default function CatalogPageComponent() {
         }
         if (appliedInStock !== null) {
           params.set("inStock", String(appliedInStock))
+        }
+        if (shouldSimulateDelay && simulateDelayMs > 0) {
+          params.set("simulateDelayMs", String(simulateDelayMs))
         }
 
         const response = await fetch(`/api/catalog?${params.toString()}`, {
@@ -276,7 +308,7 @@ export default function CatalogPageComponent() {
         setIsLoading(false)
       }
     },
-    [appliedCategory, appliedInStock, debouncedSearch, limit, page, sort]
+    [appliedCategory, appliedInStock, debouncedSearch, limit, page, simulateDelayMs, sort]
   )
 
   const fetchCatalogFilterOptions = useCallback(async (signal?: AbortSignal) => {
@@ -452,6 +484,21 @@ export default function CatalogPageComponent() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex min-w-56 flex-col gap-2">
+              <Label htmlFor="catalog-simulate-delay">Search Delay ({simulateDelayMs}ms)</Label>
+              <Input
+                id="catalog-simulate-delay"
+                type="range"
+                min={0}
+                max={3000}
+                step={100}
+                value={simulateDelayMs}
+                onChange={(event) => setSimulateDelayMs(Number(event.target.value))}
+              />
+              <p className="text-muted-foreground text-xs">
+                Applied only for debounced search requests.
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
             {appliedCategory ? <Badge variant="outline">Category: {appliedCategory}</Badge> : null}
@@ -545,9 +592,16 @@ export default function CatalogPageComponent() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button type="button" size="sm" onClick={() => openCreatePoModal(item)}>
-                          Create PO
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button asChild type="button" variant="outline" size="icon" aria-label={`View ${item.name}`}>
+                            <Link href={`/catalog/${item.id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <Button type="button" size="sm" onClick={() => openCreatePoModal(item)}>
+                            Create PO
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

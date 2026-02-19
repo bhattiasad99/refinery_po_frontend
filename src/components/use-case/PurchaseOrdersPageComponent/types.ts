@@ -7,6 +7,7 @@ export type KanbanColumnId =
 
 export type KanbanPurchaseOrder = {
   id: string
+  poNumber: string | null
   supplierName: string
   numberOfItems: number
   requestedBy: string

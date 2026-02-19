@@ -86,6 +86,7 @@ export default function StatusActionButtons({ purchaseOrderId, status }: StatusA
       router.refresh()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to update purchase order status")
+    } finally {
       setIsPending(false)
     }
   }

@@ -33,6 +33,7 @@ type PurchaseOrderMilestoneApi = {
 
 export type PurchaseOrderApiResponse = {
   id: string
+  poNumber: string | null
   status: string
   submittedAt: string | null
   submittedBy: string | null
@@ -56,6 +57,13 @@ export type PurchaseOrderApiResponse = {
   customTerms: string | null
   lineItems: PurchaseOrderLineItemApi[]
   milestones: PurchaseOrderMilestoneApi[]
+  statusHistory?: Array<{
+    id: string
+    fromStatus: string | null
+    toStatus: string
+    changedBy: string | null
+    changedAt: string
+  }>
 }
 
 type PurchaseOrderWritePayload = {
@@ -97,6 +105,18 @@ type PurchaseOrderWritePayload = {
   } | null
 }
 
+export class ApiError extends Error {
+  status: number
+  body: unknown
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+    this.body = body
+  }
+}
+
 function normalizeString(value: string | null | undefined): string {
   return typeof value === "string" ? value : ""
 }
@@ -122,7 +142,7 @@ async function parseResponse<T>(response: Response, fallbackMessage: string): Pr
       body && typeof body === "object" && "message" in body && typeof body.message === "string"
         ? body.message
         : fallbackMessage
-    throw new Error(message)
+    throw new ApiError(message, response.status, body)
   }
 
   return body as T

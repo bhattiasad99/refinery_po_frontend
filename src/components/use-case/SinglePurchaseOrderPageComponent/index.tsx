@@ -25,6 +25,7 @@ type PurchaseOrderLineItem = {
 
 type PurchaseOrderApiRow = {
   id: string
+  poNumber: string | null
   status: string
   submittedAt: string | null
   submittedBy: string | null
@@ -40,6 +41,15 @@ type PurchaseOrderApiRow = {
   createdAt: string
   updatedAt: string
   lineItems: PurchaseOrderLineItem[]
+  statusHistory: PurchaseOrderStatusHistoryApiRow[]
+}
+
+type PurchaseOrderStatusHistoryApiRow = {
+  id: string
+  fromStatus: string | null
+  toStatus: string
+  changedBy: string | null
+  changedAt: string
 }
 
 type PurchaseOrderTimelineKey = "created" | "submitted" | "approved" | "rejected" | "fulfilled"
@@ -51,6 +61,7 @@ type TimelineEntry = {
 
 type PurchaseOrderViewModel = {
   id: string
+  poNumber: string | null
   status: "draft" | "submitted" | "approved" | "rejected" | "fulfilled"
   supplierName: string
   requestedBy: string
@@ -59,6 +70,7 @@ type PurchaseOrderViewModel = {
   lineItems: PurchaseOrderLineItem[]
   totalPrice: number
   timeline: Record<PurchaseOrderTimelineKey, TimelineEntry>
+  statusHistory: PurchaseOrderStatusHistoryApiRow[]
 }
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -100,6 +112,26 @@ function sumOrderTotal(lineItems: PurchaseOrderLineItem[]): number {
   )
 }
 
+function normalizeHistoryRows(rows: PurchaseOrderStatusHistoryApiRow[]): PurchaseOrderStatusHistoryApiRow[] {
+  return [...rows].sort(
+    (a, b) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime()
+  )
+}
+
+function getLatestHistoryForStatus(
+  rows: PurchaseOrderStatusHistoryApiRow[],
+  status: PurchaseOrderTimelineKey
+): PurchaseOrderStatusHistoryApiRow | null {
+  const targetStatus = status.toUpperCase()
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index]
+    if ((row.toStatus ?? "").toUpperCase() === targetStatus) {
+      return row
+    }
+  }
+  return null
+}
+
 function buildTimeline(viewModel: {
   status: PurchaseOrderViewModel["status"]
   createdAt: string
@@ -113,38 +145,45 @@ function buildTimeline(viewModel: {
   rejectedBy: string | null
   fulfilledAt: string | null
   fulfilledBy: string | null
+  statusHistory: PurchaseOrderStatusHistoryApiRow[]
 }): Record<PurchaseOrderTimelineKey, TimelineEntry> {
+  const submittedHistory = getLatestHistoryForStatus(viewModel.statusHistory, "submitted")
+  const approvedHistory = getLatestHistoryForStatus(viewModel.statusHistory, "approved")
+  const rejectedHistory = getLatestHistoryForStatus(viewModel.statusHistory, "rejected")
+  const fulfilledHistory = getLatestHistoryForStatus(viewModel.statusHistory, "fulfilled")
+
   const created = { time: viewModel.createdAt, actor: viewModel.createdBy }
   const submitted =
+    submittedHistory ||
     viewModel.submittedAt ||
     viewModel.status === "submitted" ||
     viewModel.status === "approved" ||
     viewModel.status === "rejected" ||
     viewModel.status === "fulfilled"
       ? {
-          time: viewModel.submittedAt ?? viewModel.updatedAt,
-          actor: viewModel.submittedBy ?? "Unknown User",
+          time: submittedHistory?.changedAt ?? viewModel.submittedAt ?? viewModel.updatedAt,
+          actor: submittedHistory?.changedBy ?? viewModel.submittedBy ?? "Unknown User",
         }
       : null
   const approved =
-    viewModel.approvedAt || viewModel.status === "approved" || viewModel.status === "fulfilled"
+    approvedHistory || viewModel.approvedAt || viewModel.status === "approved" || viewModel.status === "fulfilled"
       ? {
-          time: viewModel.approvedAt ?? viewModel.updatedAt,
-          actor: viewModel.approvedBy ?? "Unknown User",
+          time: approvedHistory?.changedAt ?? viewModel.approvedAt ?? viewModel.updatedAt,
+          actor: approvedHistory?.changedBy ?? viewModel.approvedBy ?? "Unknown User",
         }
       : null
   const rejected =
-    viewModel.rejectedAt || viewModel.status === "rejected"
+    rejectedHistory || viewModel.rejectedAt || viewModel.status === "rejected"
       ? {
-          time: viewModel.rejectedAt ?? viewModel.updatedAt,
-          actor: viewModel.rejectedBy ?? "Unknown User",
+          time: rejectedHistory?.changedAt ?? viewModel.rejectedAt ?? viewModel.updatedAt,
+          actor: rejectedHistory?.changedBy ?? viewModel.rejectedBy ?? "Unknown User",
         }
       : null
   const fulfilled =
-    viewModel.fulfilledAt || viewModel.status === "fulfilled"
+    fulfilledHistory || viewModel.fulfilledAt || viewModel.status === "fulfilled"
       ? {
-          time: viewModel.fulfilledAt ?? viewModel.updatedAt,
-          actor: viewModel.fulfilledBy ?? "Unknown User",
+          time: fulfilledHistory?.changedAt ?? viewModel.fulfilledAt ?? viewModel.updatedAt,
+          actor: fulfilledHistory?.changedBy ?? viewModel.fulfilledBy ?? "Unknown User",
         }
       : null
 
@@ -160,9 +199,11 @@ function buildTimeline(viewModel: {
 function mapPurchaseOrderToViewModel(purchaseOrder: PurchaseOrderApiRow): PurchaseOrderViewModel {
   const status = normalizeStatus(purchaseOrder.status)
   const createdBy = purchaseOrder.requestedByUser ?? "Unknown User"
+  const normalizedStatusHistory = normalizeHistoryRows(purchaseOrder.statusHistory ?? [])
 
   return {
     id: purchaseOrder.id,
+    poNumber: purchaseOrder.poNumber,
     status,
     supplierName: purchaseOrder.supplierName ?? "Unknown Supplier",
     requestedBy: purchaseOrder.requestedByDepartment ?? createdBy,
@@ -170,6 +211,7 @@ function mapPurchaseOrderToViewModel(purchaseOrder: PurchaseOrderApiRow): Purcha
     updatedAt: purchaseOrder.updatedAt,
     lineItems: purchaseOrder.lineItems ?? [],
     totalPrice: sumOrderTotal(purchaseOrder.lineItems ?? []),
+    statusHistory: normalizedStatusHistory,
     timeline: buildTimeline({
       status,
       createdAt: purchaseOrder.createdAt,
@@ -183,6 +225,7 @@ function mapPurchaseOrderToViewModel(purchaseOrder: PurchaseOrderApiRow): Purcha
       rejectedBy: purchaseOrder.rejectedBy,
       fulfilledAt: purchaseOrder.fulfilledAt,
       fulfilledBy: purchaseOrder.fulfilledBy,
+      statusHistory: normalizedStatusHistory,
     }),
   }
 }
@@ -276,6 +319,11 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{purchaseOrder.id}</Badge>
+              {purchaseOrder.poNumber ? (
+                <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
+                  {purchaseOrder.poNumber}
+                </Badge>
+              ) : null}
               {getStatusBadge(purchaseOrder.status)}
             </div>
             <StatusActionButtons
@@ -284,7 +332,10 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
             />
           </div>
           <CardTitle className="text-2xl leading-tight md:text-3xl">{purchaseOrder.supplierName}</CardTitle>
-          <p className="text-sm text-slate-200">Requested by {purchaseOrder.requestedBy}</p>
+          <p className="text-sm text-slate-200">
+            Requested by {purchaseOrder.requestedBy}
+            {purchaseOrder.poNumber ? ` • Internal ID ${purchaseOrder.id}` : ""}
+          </p>
         </CardHeader>
       </Card>
 
@@ -388,6 +439,40 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Status Audit Trail</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {purchaseOrder.statusHistory.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No status transitions recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-b text-left">
+                    <th className="px-3 py-2 font-medium">Changed At</th>
+                    <th className="px-3 py-2 font-medium">From</th>
+                    <th className="px-3 py-2 font-medium">To</th>
+                    <th className="px-3 py-2 font-medium">Changed By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...purchaseOrder.statusHistory].reverse().map((entry) => (
+                    <tr key={entry.id} className="border-b last:border-b-0">
+                      <td className="px-3 py-2">{dateTimeFormatter.format(new Date(entry.changedAt))}</td>
+                      <td className="px-3 py-2">{entry.fromStatus ?? "-"}</td>
+                      <td className="px-3 py-2">{entry.toStatus}</td>
+                      <td className="px-3 py-2">{entry.changedBy ?? "Unknown User"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="text-muted-foreground inline-flex items-center gap-2 text-sm">
         <CalendarClock className="size-4" />

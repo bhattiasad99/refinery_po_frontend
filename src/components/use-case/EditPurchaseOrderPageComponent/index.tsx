@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FocusEvent, useMemo, useState } from "react"
+import { FocusEvent, useEffect, useMemo, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 
@@ -34,6 +34,17 @@ import {
   type StepThreeData,
   type StepTwoData,
 } from "@/components/use-case/CreatePurchaseOrderFlow/draft-api"
+import {
+  buildStepOnePayload,
+  buildStepThreePayload,
+  buildStepTwoPayload,
+  getPurchaseOrder,
+  mapPurchaseOrderToStepOne,
+  mapPurchaseOrderToStepThree,
+  mapPurchaseOrderToStepTwo,
+  updatePurchaseOrder,
+  type PurchaseOrderApiResponse,
+} from "@/components/use-case/CreatePurchaseOrderFlow/purchase-order-client"
 
 type EditPurchaseOrderPageComponentProps = {
   id: string
@@ -71,101 +82,6 @@ const budgetCodeOptions: SearchableDropdownOption[] = [
   { label: "CC-7603", value: "CC-7603" },
 ]
 
-const DEFAULT_PAYMENT_TERM =
-  PAYMENT_TERM_OPTIONS.find((option) => option.id === "NET_30") ?? PAYMENT_TERM_OPTIONS[0]
-
-const MOCK_EDIT_PURCHASE_ORDERS: EditablePurchaseOrder[] = [
-  {
-    id: "1",
-    status: "draft",
-    step1: {
-      requestedByDepartment: "Procurement Dept",
-      requestedByUser: "Ayesha Khan",
-      budgetCode: "CC-1234",
-      needByDate: "2026-02-28",
-    },
-    step2: {
-      supplierName: "Alpha Industrial Supplies",
-      items: [
-        {
-          id: "PO1-001",
-          catalogItemId: "CAT-111",
-          item: "Safety Gloves (Box)",
-          supplier: "Alpha Industrial Supplies",
-          category: "Safety",
-          description: "Industrial grade cut-resistant gloves",
-          quantity: 10,
-          unitPrice: 12.5,
-        },
-        {
-          id: "PO1-002",
-          catalogItemId: "CAT-112",
-          item: "Protective Goggles",
-          supplier: "Alpha Industrial Supplies",
-          category: "Safety",
-          description: "Anti-fog polycarbonate safety goggles",
-          quantity: 15,
-          unitPrice: 8,
-        },
-      ],
-    },
-    step3: {
-      paymentTerm: DEFAULT_PAYMENT_TERM,
-      taxIncluded: true,
-      advancePercentage: null,
-      balanceDueInDays: null,
-      customTerms: "",
-      milestones: [],
-    },
-  },
-  {
-    id: "2",
-    status: "submitted",
-    step1: {
-      requestedByDepartment: "Maintenance Dept",
-      requestedByUser: "Bilal Ahmed",
-      budgetCode: "CC-2314",
-      needByDate: "2026-03-05",
-    },
-    step2: {
-      supplierName: "Pak Lubricants Co.",
-      items: [
-        {
-          id: "PO2-001",
-          catalogItemId: "CAT-211",
-          item: "Hydraulic Oil (20L)",
-          supplier: "Pak Lubricants Co.",
-          category: "Lubricants",
-          description: "ISO VG 46 hydraulic oil",
-          quantity: 6,
-          unitPrice: 95,
-        },
-        {
-          id: "PO2-002",
-          catalogItemId: "CAT-212",
-          item: "Grease Cartridge",
-          supplier: "Pak Lubricants Co.",
-          category: "Lubricants",
-          description: "Multi-purpose lithium grease",
-          quantity: 40,
-          unitPrice: 4.25,
-        },
-      ],
-    },
-    step3: {
-      paymentTerm: PAYMENT_TERM_OPTIONS.find((option) => option.id === "MILESTONE") ?? DEFAULT_PAYMENT_TERM,
-      taxIncluded: false,
-      advancePercentage: null,
-      balanceDueInDays: null,
-      customTerms: "",
-      milestones: [
-        { id: "M-1", label: "Delivery Completed", percentage: 60, dueInDays: 0 },
-        { id: "M-2", label: "Inspection Sign-off", percentage: 40, dueInDays: 15 },
-      ],
-    },
-  },
-]
-
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -178,6 +94,52 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 
 function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function normalizeStatus(
+  status: string | null | undefined
+): EditablePurchaseOrder["status"] {
+  const normalized = (status ?? "").toLowerCase()
+  if (normalized === "submitted") return "submitted"
+  if (normalized === "approved") return "approved"
+  if (normalized === "rejected") return "rejected"
+  if (normalized === "fulfilled") return "fulfilled"
+  return "draft"
+}
+
+function createEmptyEditablePurchaseOrder(id: string): EditablePurchaseOrder {
+  return {
+    id,
+    status: "draft",
+    step1: {
+      requestedByDepartment: "",
+      requestedByUser: "",
+      budgetCode: "",
+      needByDate: undefined,
+    },
+    step2: {
+      supplierName: "",
+      items: [],
+    },
+    step3: {
+      paymentTerm: PAYMENT_TERM_OPTIONS.find((option) => option.id === "NET_30") ?? PAYMENT_TERM_OPTIONS[0],
+      taxIncluded: false,
+      advancePercentage: null,
+      balanceDueInDays: null,
+      customTerms: "",
+      milestones: [],
+    },
+  }
+}
+
+function mapPurchaseOrderResponseToEditableOrder(response: PurchaseOrderApiResponse): EditablePurchaseOrder {
+  return {
+    id: response.id,
+    status: normalizeStatus(response.status),
+    step1: mapPurchaseOrderToStepOne(response),
+    step2: mapPurchaseOrderToStepTwo(response),
+    step3: mapPurchaseOrderToStepThree(response),
+  }
 }
 
 function isEqual(a: unknown, b: unknown): boolean {
@@ -251,12 +213,10 @@ const selectAllOnFocus = (event: FocusEvent<HTMLInputElement>) => {
 export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrderPageComponentProps) {
   const router = useRouter()
   const referenceData = useCreatePurchaseOrderReferenceData()
-  const initialPurchaseOrder = useMemo(
-    () => cloneValue(MOCK_EDIT_PURCHASE_ORDERS.find((order) => order.id === id) ?? MOCK_EDIT_PURCHASE_ORDERS[0]),
-    [id]
-  )
-
-  const [baseOrder, setBaseOrder] = useState<EditablePurchaseOrder>(initialPurchaseOrder)
+  const [isLoadingOrder, setIsLoadingOrder] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
+  const [baseOrder, setBaseOrder] = useState<EditablePurchaseOrder>(() => createEmptyEditablePurchaseOrder(id))
   const [pendingChanges, setPendingChanges] = useState<PurchaseOrderChanges>({})
 
   const [isStepOneModalOpen, setIsStepOneModalOpen] = useState(false)
@@ -304,6 +264,46 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
     }
     return null
   }, [stepThreeDraft, stepThreeMilestoneTotal])
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadOrder = async () => {
+      setIsLoadingOrder(true)
+      setLoadErrorMessage(null)
+
+      try {
+        const purchaseOrder = await getPurchaseOrder(id)
+        if (!isActive) {
+          return
+        }
+
+        const mappedOrder = mapPurchaseOrderResponseToEditableOrder(purchaseOrder)
+        setBaseOrder(mappedOrder)
+        setPendingChanges({})
+        setStepOneDraft(cloneValue(mappedOrder.step1))
+        setStepTwoDraft(cloneValue(mappedOrder.step2))
+        setStepThreeDraft(cloneValue(mappedOrder.step3))
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+        setBaseOrder(createEmptyEditablePurchaseOrder(id))
+        setPendingChanges({})
+        setLoadErrorMessage(error instanceof Error ? error.message : "Failed to load purchase order")
+      } finally {
+        if (isActive) {
+          setIsLoadingOrder(false)
+        }
+      }
+    }
+
+    void loadOrder()
+
+    return () => {
+      isActive = false
+    }
+  }, [id])
 
   const openStepOneModal = () => {
     setStepOneDraft(displayOrder.step1)
@@ -355,21 +355,42 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
     setIsStepThreeModalOpen(false)
   }
 
-  const onPageSaveChanges = () => {
+  const onPageSaveChanges = async () => {
     if (!hasPendingChanges) {
       toast.info("No changes to save")
       return
     }
 
     try {
-      setBaseOrder((previous) => applyChanges(previous, pendingChanges))
+      setIsSaving(true)
+      const nextOrder = applyChanges(baseOrder, pendingChanges)
+      const sanitizedChanges = sanitizeChanges(pendingChanges)
+      const payload: Parameters<typeof updatePurchaseOrder>[1] = {}
+
+      if (sanitizedChanges.step1) {
+        payload.step1 = buildStepOnePayload(nextOrder.step1).step1
+      }
+      if (sanitizedChanges.step2) {
+        payload.step2 = buildStepTwoPayload(nextOrder.step2).step2
+      }
+      if (sanitizedChanges.step3) {
+        payload.step3 = buildStepThreePayload(nextOrder.step3).step3
+      }
+
+      const updatedPurchaseOrder = await updatePurchaseOrder(displayOrder.id, payload)
+      const mappedOrder = mapPurchaseOrderResponseToEditableOrder(updatedPurchaseOrder)
+
+      setBaseOrder(mappedOrder)
       setPendingChanges({})
-      toast.success("Changes saved", {
-        description: "Saved locally only. API save is not connected yet.",
-      })
+      setStepOneDraft(cloneValue(mappedOrder.step1))
+      setStepTwoDraft(cloneValue(mappedOrder.step2))
+      setStepThreeDraft(cloneValue(mappedOrder.step3))
+      toast.success("Changes saved")
       router.push(`/purchase-orders/${displayOrder.id}`)
-    } catch {
-      toast.error("Failed to save changes")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save changes")
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -526,16 +547,16 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
                 size="sm"
                 variant="secondary"
                 className="bg-white/15 text-white hover:bg-white/25"
-                disabled={!hasPendingChanges}
+                disabled={!hasPendingChanges || isSaving || isLoadingOrder}
                 onClick={onPageSaveChanges}
               >
-                Save Changes
+                {isSaving ? "Saving..." : "Save Changes"}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 className="border-white/30 bg-transparent text-white hover:bg-white/10"
-                disabled={!hasPendingChanges}
+                disabled={!hasPendingChanges || isSaving || isLoadingOrder}
                 onClick={onPageCancelChanges}
               >
                 Cancel
@@ -544,15 +565,29 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
           </div>
           <CardTitle className="text-2xl leading-tight md:text-3xl">Edit Purchase Order</CardTitle>
           <p className="text-sm text-slate-200">
-            This page is read-only. Use each section&apos;s Edit button to update local state.
+            Review and update this purchase order. Changes are saved through the purchase-order API.
           </p>
         </CardHeader>
       </Card>
+
+      {isLoadingOrder ? (
+        <Card>
+          <CardContent className="p-6 text-sm text-slate-600">Loading purchase order...</CardContent>
+        </Card>
+      ) : null}
+
+      {loadErrorMessage ? (
+        <Card>
+          <CardContent className="p-6 text-sm font-medium text-red-600">{loadErrorMessage}</CardContent>
+        </Card>
+      ) : null}
 
       {referenceData.errorMessage ? (
         <p className="text-sm font-medium text-red-600">{referenceData.errorMessage}</p>
       ) : null}
 
+      {loadErrorMessage || isLoadingOrder ? null : (
+      <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Basic Request Information</CardTitle>
@@ -705,13 +740,15 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
       </Card>
 
       <div className="flex items-center justify-end gap-3">
-        <Button variant="outline" disabled={!hasPendingChanges} onClick={onPageCancelChanges}>
+        <Button variant="outline" disabled={!hasPendingChanges || isSaving || isLoadingOrder} onClick={onPageCancelChanges}>
           Cancel
         </Button>
-        <Button disabled={!hasPendingChanges} onClick={onPageSaveChanges}>
-          Save Changes
+        <Button disabled={!hasPendingChanges || isSaving || isLoadingOrder} onClick={onPageSaveChanges}>
+          {isSaving ? "Saving..." : "Save Changes"}
         </Button>
       </div>
+      </>
+      )}
 
       <ControlledModal
         open={isStepOneModalOpen}
