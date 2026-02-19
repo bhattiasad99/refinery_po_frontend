@@ -7,6 +7,12 @@ import { Button } from "@/components/ui/button"
 import catalogItemsData from "./catalog_items.json"
 import { type PurchaseOrderLineItem, type StepTwoData } from "./draft-api"
 import { ItemSelectionModal } from "./item-selection-modal"
+import {
+  buildStepTwoPayload,
+  getPurchaseOrder,
+  mapPurchaseOrderToStepTwo,
+  updatePurchaseOrder,
+} from "./purchase-order-client"
 
 import { StepShell } from "./step-shell"
 import { StepTwoItemsTable } from "./step-two-items-table"
@@ -42,15 +48,35 @@ export default function CreatePurchaseOrderStepTwo({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isItemModalOpen, setIsItemModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<PurchaseOrderLineItem | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+
     const loadPageData = async () => {
       setIsLoading(true)
-      setValues(emptyStepTwoData())
-      setIsLoading(false)
+      setErrorMessage(null)
+
+      try {
+        const purchaseOrder = await getPurchaseOrder(draftId)
+        const stepTwo = mapPurchaseOrderToStepTwo(purchaseOrder)
+        if (!isMounted) return
+        setValues(stepTwo)
+      } catch (error) {
+        if (!isMounted) return
+        setValues(emptyStepTwoData())
+        setErrorMessage(error instanceof Error ? error.message : "Failed to load step 2")
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
     }
 
     loadPageData()
+    return () => {
+      isMounted = false
+    }
   }, [draftId])
 
   const hasItems = useMemo(() => values.items.length > 0, [values.items])
@@ -64,12 +90,24 @@ export default function CreatePurchaseOrderStepTwo({
   }, [values.supplierName])
 
   const onBack = () => {
-    router.push("/purchase-orders/new")
+    router.push(`/purchase-orders/new?draftId=${encodeURIComponent(draftId)}`)
   }
 
   const onNext = async () => {
+    if (isLoading || isSubmitting) {
+      return
+    }
+
     setIsSubmitting(true)
-    router.push(`/purchase-orders/new/step-3/${draftId}`)
+    setErrorMessage(null)
+
+    try {
+      await updatePurchaseOrder(draftId, buildStepTwoPayload(values))
+      router.push(`/purchase-orders/new/step-3/${draftId}`)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to save step 2")
+      setIsSubmitting(false)
+    }
   }
 
   const onOpenAddItemModal = () => {
@@ -173,6 +211,8 @@ export default function CreatePurchaseOrderStepTwo({
             {isSubmitting ? "Saving..." : "Next"}
           </Button>
         </div>
+
+        {errorMessage ? <p className="text-sm font-medium text-red-600">{errorMessage}</p> : null}
       </div>
 
       {isItemModalOpen ? (

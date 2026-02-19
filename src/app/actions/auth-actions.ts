@@ -21,6 +21,17 @@ type LoginState = {
   error: string | null
 }
 
+function getSafeContinuePath(rawValue: FormDataEntryValue | null): string {
+  const value = typeof rawValue === "string" ? rawValue.trim() : ""
+  if (!value.startsWith("/")) {
+    return "/dashboard"
+  }
+  if (value.startsWith("//")) {
+    return "/dashboard"
+  }
+  return value
+}
+
 async function parseGatewayResponse<T>(response: Response): Promise<GatewaySuccess<T>> {
   const data = (await response.json()) as GatewaySuccess<T>
   return data
@@ -43,6 +54,7 @@ function getSetCookieHeaders(response: Response): string[] {
 export async function loginAction(_prevState: { error: string | null }, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") || "").trim()
   const password = String(formData.get("password") || "")
+  const continuePath = getSafeContinuePath(formData.get("continue"))
 
   if (!email || !password) {
     return { error: "Email and password are required." }
@@ -109,7 +121,7 @@ export async function loginAction(_prevState: { error: string | null }, formData
   await setAccessTokenCookie(accessToken)
   await setRefreshTokenCookie(refreshToken)
 
-  redirect("/dashboard")
+  redirect(continuePath)
 }
 
 export async function logoutAction(): Promise<void> {

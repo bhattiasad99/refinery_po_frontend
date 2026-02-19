@@ -16,6 +16,12 @@ import {
   PAYMENT_TERM_OPTIONS,
   type PurchaseOrderDraft,
 } from "./draft-api"
+import {
+  getPurchaseOrder,
+  mapPurchaseOrderToStepOne,
+  mapPurchaseOrderToStepThree,
+  mapPurchaseOrderToStepTwo,
+} from "./purchase-order-client"
 import { StepShell } from "./step-shell"
 
 type CreatePurchaseOrderPreviewProps = {
@@ -51,82 +57,53 @@ export default function CreatePurchaseOrderPreview({
   const [draft, setDraft] = useState<PurchaseOrderDraft | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const purchaseOrderTotal =
     draft?.step2.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) ?? 0
 
   useEffect(() => {
+    let isMounted = true
+
     const loadPageData = async () => {
       setIsLoading(true)
-      setDraft({
-        id: draftId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        step1: {
-          requestedByDepartment: "Procurement Dept",
-          requestedByUser: "Ayesha Khan",
-          budgetCode: "CC-1234",
-          needByDate: undefined,
-        },
-        step2: {
-          supplierName: "Qatar Industrial Supply Co.",
-          items: [
-            {
-              id: "li-1",
-              catalogItemId: "CAT-001",
-              item: "Stainless Steel Gate Valve 2in",
-              supplier: "Qatar Industrial Supply Co.",
-              category: "Valves",
-              description: "ANSI 150, threaded ends",
-              quantity: 12,
-              unitPrice: 145,
-            },
-            {
-              id: "li-2",
-              catalogItemId: "CAT-014",
-              item: "Pressure Gauge 0-10 bar",
-              supplier: "Qatar Industrial Supply Co.",
-              category: "Instrumentation",
-              description: "Glycerin filled, 1/4in NPT",
-              quantity: 8,
-              unitPrice: 38,
-            },
-            {
-              id: "li-3",
-              catalogItemId: "CAT-022",
-              item: "Industrial Safety Gloves",
-              supplier: "Qatar Industrial Supply Co.",
-              category: "Safety",
-              description: "Heat resistant, pair",
-              quantity: 30,
-              unitPrice: 9,
-            },
-          ],
-        },
-        step3: {
-          paymentTerm:
-            PAYMENT_TERM_OPTIONS.find((option) => option.id === "NET_30") ??
-            PAYMENT_TERM_OPTIONS[0],
-          taxIncluded: false,
-          advancePercentage: null,
-          balanceDueInDays: null,
-          customTerms: "",
-          milestones: [],
-        },
-        step4: {
-          primary: "",
-          secondary: "",
-          tertiary: "",
-        },
-        step5: {
-          primary: "",
-          secondary: "",
-          tertiary: "",
-        },
-      })
-      setIsLoading(false)
+      setErrorMessage(null)
+      try {
+        const purchaseOrder = await getPurchaseOrder(draftId)
+        if (!isMounted) return
+
+        setDraft({
+          id: purchaseOrder.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          step1: mapPurchaseOrderToStepOne(purchaseOrder),
+          step2: mapPurchaseOrderToStepTwo(purchaseOrder),
+          step3: mapPurchaseOrderToStepThree(purchaseOrder),
+          step4: {
+            primary: "",
+            secondary: "",
+            tertiary: "",
+          },
+          step5: {
+            primary: "",
+            secondary: "",
+            tertiary: "",
+          },
+        })
+      } catch (error) {
+        if (!isMounted) return
+        setDraft(null)
+        setErrorMessage(error instanceof Error ? error.message : "Failed to load preview")
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
     }
 
     loadPageData()
+    return () => {
+      isMounted = false
+    }
   }, [draftId])
 
   const onSubmit = async () => {
@@ -240,6 +217,7 @@ export default function CreatePurchaseOrderPreview({
               {isSubmitting ? "Submitting..." : "Submit Purchase Order"}
             </Button>
           </div>
+          {errorMessage ? <p className="text-sm font-medium text-red-600">{errorMessage}</p> : null}
         </div>
       )}
     </StepShell>

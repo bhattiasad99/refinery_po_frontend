@@ -4,7 +4,11 @@ import { useActionState } from "react"
 import { ArrowRight, ShieldCheck } from "lucide-react"
 import { loginAction } from "@/app/actions/auth-actions"
 
-const LoginForm = () => {
+type LoginFormProps = {
+  continuePath?: string
+}
+
+const LoginForm = ({ continuePath = "/dashboard" }: LoginFormProps) => {
   const [state, formAction, isPending] = useActionState(loginAction, { error: null })
 
   return (
@@ -12,6 +16,8 @@ const LoginForm = () => {
       action={formAction}
       className="mx-auto w-full max-w-md space-y-6 rounded-3xl border border-white/20 bg-white/10 p-7 shadow-2xl shadow-slate-950/35 backdrop-blur-xl md:p-8"
     >
+      <input type="hidden" name="continue" value={continuePath} />
+
       <div className="space-y-3">
         <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/35 bg-cyan-300/15 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-cyan-100 uppercase">
           <ShieldCheck className="size-3.5" />

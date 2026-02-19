@@ -20,16 +20,37 @@ function isProtectedPath(pathname: string): boolean {
   })
 }
 
+function getSafeContinuePath(pathname: string, search: string): string | null {
+  const combinedPath = `${pathname}${search || ""}`
+  if (!combinedPath.startsWith("/")) {
+    return null
+  }
+  if (combinedPath.startsWith("//")) {
+    return null
+  }
+  return combinedPath
+}
+
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const accessToken = request.cookies.get(ACCESS_COOKIE_NAME)?.value
 
   if (pathname === "/login" && accessToken) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    const requestedContinue = request.nextUrl.searchParams.get("continue")
+    const continuePath =
+      requestedContinue && requestedContinue.startsWith("/") && !requestedContinue.startsWith("//")
+        ? requestedContinue
+        : "/dashboard"
+    return NextResponse.redirect(new URL(continuePath, request.url))
   }
 
   if (isProtectedPath(pathname) && !accessToken) {
-    return NextResponse.redirect(new URL("/login", request.url))
+    const loginUrl = new URL("/login", request.url)
+    const continuePath = getSafeContinuePath(pathname, request.nextUrl.search)
+    if (continuePath) {
+      loginUrl.searchParams.set("continue", continuePath)
+    }
+    return NextResponse.redirect(loginUrl)
   }
 
   return NextResponse.next()

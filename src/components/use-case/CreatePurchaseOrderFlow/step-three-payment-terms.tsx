@@ -19,6 +19,12 @@ import {
   type PaymentMilestone,
   type StepThreeData,
 } from "./draft-api"
+import {
+  buildStepThreePayload,
+  getPurchaseOrder,
+  mapPurchaseOrderToStepThree,
+  updatePurchaseOrder,
+} from "./purchase-order-client"
 import { StepShell } from "./step-shell"
 
 type CreatePurchaseOrderStepThreeProps = {
@@ -64,16 +70,41 @@ export default function CreatePurchaseOrderStepThree({
   const [itemSubtotal, setItemSubtotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+
     const loadPageData = async () => {
       setIsLoading(true)
-      setValues(emptyStepThreeData())
-      setItemSubtotal(0)
-      setIsLoading(false)
+      setErrorMessage(null)
+
+      try {
+        const purchaseOrder = await getPurchaseOrder(draftId)
+        if (!isMounted) return
+
+        setValues(mapPurchaseOrderToStepThree(purchaseOrder))
+        const nextSubtotal = (purchaseOrder.lineItems ?? []).reduce(
+          (runningTotal, item) => runningTotal + (item.quantity ?? 0) * (item.unitPrice ?? 0),
+          0
+        )
+        setItemSubtotal(nextSubtotal)
+      } catch (error) {
+        if (!isMounted) return
+        setValues(emptyStepThreeData())
+        setItemSubtotal(0)
+        setErrorMessage(error instanceof Error ? error.message : "Failed to load step 3")
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
     }
 
     loadPageData()
+    return () => {
+      isMounted = false
+    }
   }, [draftId])
 
   const safePaymentTerm = values.paymentTerm ?? defaultPaymentTerm
@@ -153,9 +184,18 @@ export default function CreatePurchaseOrderStepThree({
 
   const onNext = async () => {
     if (!isValid) return
+    if (isLoading || isSubmitting) return
 
     setIsSubmitting(true)
-    router.push(`/purchase-orders/new/preview/${draftId}`)
+    setErrorMessage(null)
+
+    try {
+      await updatePurchaseOrder(draftId, buildStepThreePayload(values))
+      router.push(`/purchase-orders/new/preview/${draftId}`)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to save step 3")
+      setIsSubmitting(false)
+    }
   }
 
   const onBack = () => {
@@ -377,6 +417,7 @@ export default function CreatePurchaseOrderStepThree({
           {isSubmitting ? "Saving..." : "Next"}
         </Button>
       </div>
+      {errorMessage ? <p className="mt-3 text-sm font-medium text-red-600">{errorMessage}</p> : null}
     </StepShell>
   )
 }

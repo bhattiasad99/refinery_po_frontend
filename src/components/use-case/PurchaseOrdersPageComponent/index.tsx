@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { DragDropContext, DropResult } from "@hello-pangea/dnd"
 import { PlusCircle, Search } from "lucide-react"
 
@@ -13,6 +13,38 @@ import { initialKanbanBoard } from "./mock-data"
 import { KanbanBoardState, KanbanColumn, KanbanColumnId } from "./types"
 
 const KANBAN_DRAG_ENABLED = false
+const SEARCH_DEBOUNCE_MS = 250
+
+const normalize = (value: string) => value.toLowerCase().trim()
+
+const fuzzyIncludes = (source: string, query: string) => {
+  if (!query) return true
+
+  let queryIndex = 0
+  const normalizedSource = normalize(source)
+  const normalizedQuery = normalize(query)
+
+  for (let sourceIndex = 0; sourceIndex < normalizedSource.length; sourceIndex += 1) {
+    if (normalizedSource[sourceIndex] === normalizedQuery[queryIndex]) {
+      queryIndex += 1
+      if (queryIndex === normalizedQuery.length) return true
+    }
+  }
+
+  return false
+}
+
+const purchaseOrderMatchesQuery = (purchaseOrder: KanbanBoardState["purchaseOrders"][string], query: string) => {
+  if (!query.trim()) return true
+
+  return [
+    purchaseOrder.id,
+    purchaseOrder.supplierName,
+    purchaseOrder.requestedBy,
+    String(purchaseOrder.numberOfItems),
+    String(purchaseOrder.totalPrice),
+  ].some((field) => fuzzyIncludes(field, query))
+}
 
 const movePurchaseOrderWithinColumn = (
   column: KanbanColumn,
@@ -31,6 +63,16 @@ const movePurchaseOrderWithinColumn = (
 
 export default function PurchaseOrdersPageComponent() {
   const [board, setBoard] = useState<KanbanBoardState>(initialKanbanBoard)
+  const [searchDraft, setSearchDraft] = useState("")
+  const [search, setSearch] = useState("")
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setSearch(searchDraft)
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [searchDraft])
 
   const onDragEnd = (result: DropResult) => {
     const { destination, source } = result
@@ -96,13 +138,31 @@ export default function PurchaseOrdersPageComponent() {
     [board.columnOrder, board.columns]
   )
 
+  const filteredColumnPurchaseOrderIds = useMemo(
+    () =>
+      Object.fromEntries(
+        orderedColumns.map((column) => [
+          column.id,
+          column.purchaseOrderIds.filter((purchaseOrderId) =>
+            purchaseOrderMatchesQuery(board.purchaseOrders[purchaseOrderId], search)
+          ),
+        ])
+      ) as Record<KanbanColumnId, string[]>,
+    [board.purchaseOrders, orderedColumns, search]
+  )
+
   return (
-    <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
+    <div className="flex h-[calc(100svh-var(--header-height)-2rem)] w-full max-w-full min-w-0 flex-col gap-6 overflow-hidden lg:h-[calc(100svh-var(--header-height)-3rem)]">
       <div className="flex flex-wrap items-center md:justify-end w-full gap-4">
         <div className="flex w-full flex-wrap md:justify-end items-center gap-3 md:w-auto">
           <div className="relative w-full md:w-72">
             <Search className="text-muted-foreground pointer-events-none absolute left-3 top-2.5 size-4" />
-            <Input placeholder="Search purchase orders..." className="h-10 pl-9" />
+            <Input
+              placeholder="Search purchase orders..."
+              className="h-10 pl-9"
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+            />
           </div>
           {/* <Button variant="outline" className="h-10 px-4">
             <ListFilter />
@@ -117,19 +177,19 @@ export default function PurchaseOrdersPageComponent() {
         </div>
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 min-h-0 flex-1">
         <DragDropContext
           onDragEnd={
             KANBAN_DRAG_ENABLED ? onDragEnd : () => undefined
           }
         >
-          <div className="overflow-x-auto pb-2">
-            <div className="flex min-w-max gap-3">
+          <div className="h-full overflow-x-auto overflow-y-auto pb-2">
+            <div className="flex min-h-full min-w-max gap-3">
               {orderedColumns.map((column) => (
                 <KanbanColumnComponent
                   key={column.id}
                   column={column}
-                  purchaseOrders={column.purchaseOrderIds.map((purchaseOrderId) => board.purchaseOrders[purchaseOrderId])}
+                  purchaseOrders={filteredColumnPurchaseOrderIds[column.id].map((purchaseOrderId) => board.purchaseOrders[purchaseOrderId])}
                   dragEnabled={KANBAN_DRAG_ENABLED}
                 />
               ))}

@@ -1,6 +1,31 @@
 import LoginForm from "./login-form"
 
-const LoginPage = () => {
+type LoginPageProps = {
+  searchParams?:
+    | Promise<{
+      continue?: string | string[]
+    }>
+    | {
+      continue?: string | string[]
+    }
+}
+
+function getSafeContinuePath(continueParam: string | string[] | undefined): string {
+  const rawValue = Array.isArray(continueParam) ? continueParam[0] : continueParam
+  const value = typeof rawValue === "string" ? rawValue.trim() : ""
+  if (!value.startsWith("/")) {
+    return "/dashboard"
+  }
+  if (value.startsWith("//")) {
+    return "/dashboard"
+  }
+  return value
+}
+
+const LoginPage = async ({ searchParams }: LoginPageProps) => {
+  const resolvedSearchParams = await searchParams
+  const continuePath = getSafeContinuePath(resolvedSearchParams?.continue)
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
       <div
@@ -29,7 +54,7 @@ const LoginPage = () => {
         </section>
 
         <section className="w-full">
-          <LoginForm />
+          <LoginForm continuePath={continuePath} />
         </section>
       </div>
     </main>

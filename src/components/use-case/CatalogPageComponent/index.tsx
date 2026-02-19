@@ -61,7 +61,7 @@ export default function CatalogPageComponent() {
   const [avgLeadTime, setAvgLeadTime] = useState(0)
   const [avgPrice, setAvgPrice] = useState(0)
   const [inStockCount, setInStockCount] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 

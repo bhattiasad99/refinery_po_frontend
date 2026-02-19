@@ -60,7 +60,7 @@ export default function SuppliersPageComponent() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [total, setTotal] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -291,7 +291,7 @@ export default function SuppliersPageComponent() {
                     const avgPrice =
                       supplierRow.items.length > 0
                         ? supplierRow.items.reduce((sum, item) => sum + item.priceUsd, 0) /
-                          supplierRow.items.length
+                        supplierRow.items.length
                         : 0
                     const isExpanded = expandedSuppliers[supplierRow.supplier] ?? false
 
@@ -307,72 +307,72 @@ export default function SuppliersPageComponent() {
                             size="sm"
                             onClick={() => toggleSupplierItems(supplierRow.supplier)}
                           >
-                            {isExpanded ? "Hide" : "View"}
+                            {isExpanded ? "Hide Items" : "View Items"}
                           </Button>
                         </TableCell>
                       </TableRow>,
                       ...(isExpanded
                         ? [
-                            <TableRow key={`${supplierRow.supplier}-items`}>
-                              <TableCell colSpan={5} className="bg-muted/20 p-0">
-                                <div className="space-y-3 p-4">
-                                  <p className="text-sm font-medium">
-                                    Items supplied by {supplierRow.supplier}
-                                  </p>
-                                  <div className="overflow-x-auto rounded-md border bg-background">
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          <TableHead>Item</TableHead>
-                                          <TableHead>Category</TableHead>
-                                          <TableHead>Model</TableHead>
-                                          <TableHead className="text-right">Lead Time</TableHead>
-                                          <TableHead className="text-right">Price</TableHead>
-                                          <TableHead>Stock</TableHead>
+                          <TableRow key={`${supplierRow.supplier}-items`}>
+                            <TableCell colSpan={5} className="bg-muted/20 p-0">
+                              <div className="space-y-3 p-4">
+                                <p className="text-sm font-medium">
+                                  Items supplied by {supplierRow.supplier}
+                                </p>
+                                <div className="overflow-x-auto rounded-md border bg-background">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Item</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead>Model</TableHead>
+                                        <TableHead className="text-right">Lead Time</TableHead>
+                                        <TableHead className="text-right">Price</TableHead>
+                                        <TableHead>Stock</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {supplierRow.items.map((item) => (
+                                        <TableRow key={item.id}>
+                                          <TableCell>
+                                            <div className="space-y-1">
+                                              <Link
+                                                href={`/catalog/${item.id}`}
+                                                className="text-primary text-xs font-semibold"
+                                              >
+                                                {item.id}
+                                              </Link>
+                                              <p className="line-clamp-2 font-medium">{item.name}</p>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>
+                                            <Badge variant="outline">{item.categoryName}</Badge>
+                                          </TableCell>
+                                          <TableCell>{item.model}</TableCell>
+                                          <TableCell className="text-right">
+                                            {item.leadTimeDays} days
+                                          </TableCell>
+                                          <TableCell className="text-right font-semibold">
+                                            {currencyFormatter.format(item.priceUsd)}
+                                          </TableCell>
+                                          <TableCell>
+                                            {item.inStock ? (
+                                              <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
+                                                In Stock
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="secondary">Backorder</Badge>
+                                            )}
+                                          </TableCell>
                                         </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {supplierRow.items.map((item) => (
-                                          <TableRow key={item.id}>
-                                            <TableCell>
-                                              <div className="space-y-1">
-                                                <Link
-                                                  href={`/catalog/${item.id}`}
-                                                  className="text-primary text-xs font-semibold"
-                                                >
-                                                  {item.id}
-                                                </Link>
-                                                <p className="line-clamp-2 font-medium">{item.name}</p>
-                                              </div>
-                                            </TableCell>
-                                            <TableCell>
-                                              <Badge variant="outline">{item.categoryName}</Badge>
-                                            </TableCell>
-                                            <TableCell>{item.model}</TableCell>
-                                            <TableCell className="text-right">
-                                              {item.leadTimeDays} days
-                                            </TableCell>
-                                            <TableCell className="text-right font-semibold">
-                                              {currencyFormatter.format(item.priceUsd)}
-                                            </TableCell>
-                                            <TableCell>
-                                              {item.inStock ? (
-                                                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
-                                                  In Stock
-                                                </Badge>
-                                              ) : (
-                                                <Badge variant="secondary">Backorder</Badge>
-                                              )}
-                                            </TableCell>
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  </div>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
                                 </div>
-                              </TableCell>
-                            </TableRow>,
-                          ]
+                              </div>
+                            </TableCell>
+                          </TableRow>,
+                        ]
                         : []),
                     ]
                   })

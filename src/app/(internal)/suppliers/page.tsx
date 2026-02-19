@@ -1,8 +1,13 @@
-import React from 'react'
+import { Suspense, lazy } from "react"
+import { SuppliersPageFallback } from "@/components/use-case/SuppliersPageComponent/fallback"
+
+const SuppliersPageComponent = lazy(() => import("@/components/use-case/SuppliersPageComponent"))
 
 const SuppliersPage = () => {
   return (
-    <div>SuppliersPage</div>
+    <Suspense fallback={<SuppliersPageFallback />}>
+      <SuppliersPageComponent />
+    </Suspense>
   )
 }
 
