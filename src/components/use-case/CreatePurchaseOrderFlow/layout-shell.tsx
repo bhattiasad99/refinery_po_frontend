@@ -1,11 +1,12 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
-
 import { Badge } from "@/components/ui/badge"
-import { Card, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  InternalHero,
+  InternalPageBackLink,
+  InternalPageTemplate,
+} from "@/components/templates/internal-page-template"
 
 type CreatePurchaseOrderFlowLayoutShellProps = {
   children: React.ReactNode
@@ -32,25 +33,20 @@ export default function CreatePurchaseOrderFlowLayoutShell({
   const activeStep = getActiveStep(pathname)
 
   return (
-    <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
-      <Link
-        href="/purchase-orders"
-        className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
-      >
-        <ArrowLeft className="size-4" />
-        Back to purchase orders
-      </Link>
+    <InternalPageTemplate className="gap-4">
+      <InternalPageBackLink href="/purchase-orders" label="Back to purchase orders" />
 
-      <Card className="overflow-hidden border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
-        <CardHeader className="gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Badge className="bg-white/15 text-white hover:bg-white/15">Create Purchase Order</Badge>
-            <Badge variant="secondary" className="bg-white text-slate-900 hover:bg-white">
-              Step {activeStep} of 4
-            </Badge>
-          </div>
-          <CardTitle className="text-2xl md:text-3xl">{STEP_LABELS[activeStep]}</CardTitle>
-          <div className="grid grid-cols-4 gap-2">
+      <InternalHero
+        eyebrow="Create Purchase Order"
+        title={STEP_LABELS[activeStep]}
+        actions={
+          <Badge variant="secondary" className="bg-white text-slate-900 hover:bg-white">
+            Step {activeStep} of 4
+          </Badge>
+        }
+        contentClassName="gap-3"
+        meta={
+          <div className="grid w-full grid-cols-4 gap-2">
             {Array.from({ length: 4 }).map((_, index) => {
               const step = index + 1
               return (
@@ -65,10 +61,10 @@ export default function CreatePurchaseOrderFlowLayoutShell({
               )
             })}
           </div>
-        </CardHeader>
-      </Card>
+        }
+      />
 
       {children}
-    </div>
+    </InternalPageTemplate>
   )
 }

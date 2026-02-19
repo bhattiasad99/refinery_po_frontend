@@ -22,7 +22,7 @@ export function KanbanColumnComponent({
   dragEnabled,
 }: KanbanColumnProps) {
   return (
-    <div className="bg-muted/50 flex h-full min-h-[380px] w-[300px] shrink-0 flex-col rounded-2xl p-3">
+    <div className="bg-muted/50 flex h-full min-h-[380px] w-[280px] shrink-0 flex-col rounded-2xl p-3 sm:w-[300px]">
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold">{column.title}</h2>

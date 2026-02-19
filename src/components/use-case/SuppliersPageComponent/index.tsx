@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+import { InternalHero, InternalPageTemplate } from "@/components/templates/internal-page-template"
 
 type SupplierCatalogItem = {
   id: string
@@ -174,17 +175,14 @@ export default function SuppliersPageComponent() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5">
-      <Card className="border-none bg-gradient-to-r from-cyan-900 via-slate-900 to-emerald-900 text-white shadow-lg">
-        <CardHeader className="space-y-3">
-          <Badge className="w-fit bg-white/15 text-white hover:bg-white/15">Suppliers</Badge>
-          <CardTitle className="text-2xl md:text-3xl">Supplier Portfolio Overview</CardTitle>
-          <p className="max-w-3xl text-sm text-cyan-50/90">
-            Compare suppliers at a glance, then expand each row to inspect nested catalog items
-            with full commercial and stock context.
-          </p>
-        </CardHeader>
-      </Card>
+    <InternalPageTemplate className="gap-5">
+      <InternalHero
+        eyebrow="Suppliers"
+        title="Supplier Portfolio Overview"
+        description="Compare suppliers at a glance, then expand each row to inspect nested catalog items with full commercial and stock context."
+        className="from-cyan-900 via-slate-900 to-emerald-900"
+        contentClassName="space-y-3"
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -223,7 +221,7 @@ export default function SuppliersPageComponent() {
         <CardHeader className="flex flex-col gap-4 pb-1 md:flex-row md:items-end md:justify-between">
           <CardTitle className="text-lg">Suppliers & Nested Items</CardTitle>
           <form onSubmit={onApplyFilters} className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
-            <div className="flex min-w-56 flex-col gap-2">
+            <div className="flex w-full flex-col gap-2 md:w-56">
               <Label htmlFor="supplier-search">Search Supplier</Label>
               <Input
                 id="supplier-search"
@@ -396,7 +394,7 @@ export default function SuppliersPageComponent() {
                 Showing page {page} of {totalPages} ({total} total suppliers)
               </p>
             )}
-            <div className="flex items-center gap-3">
+            <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:justify-end">
               <div className="flex items-center gap-2">
                 <Label htmlFor="supplier-rows-per-page" className="text-sm">
                   Rows per page
@@ -430,6 +428,6 @@ export default function SuppliersPageComponent() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </InternalPageTemplate>
   )
 }

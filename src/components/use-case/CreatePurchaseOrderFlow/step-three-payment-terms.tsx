@@ -409,7 +409,7 @@ export default function CreatePurchaseOrderStepThree({
         </Card>
       </div>
 
-      <div className="mt-6 flex items-center justify-between gap-3">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <Button variant="outline" onClick={onBack} disabled={isSubmitting || isLoading}>
           Back
         </Button>

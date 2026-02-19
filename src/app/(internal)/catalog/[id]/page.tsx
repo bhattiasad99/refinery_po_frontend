@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import {
-  ArrowLeft,
   CircleCheckBig,
   CircleX,
   PackageCheck,
@@ -12,6 +11,11 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import {
+  InternalHero,
+  InternalPageBackLink,
+  InternalPageTemplate,
+} from "@/components/templates/internal-page-template"
 import { apiFetch } from "@/lib/api-fetch"
 
 type CatalogDetailPageProps = {
@@ -141,18 +145,15 @@ export default async function CatalogDetailPage({ params }: CatalogDetailPagePro
   ]
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-6">
-      <Link
-        href="/catalog"
-        className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
-      >
-        <ArrowLeft className="size-4" />
-        Back to catalog
-      </Link>
+    <InternalPageTemplate className="mx-auto max-w-7xl pb-6">
+      <InternalPageBackLink href="/catalog" label="Back to catalog" />
 
-      <Card className="overflow-hidden border-none bg-gradient-to-r from-cyan-950 via-slate-900 to-blue-950 text-white shadow-lg">
-        <CardHeader className="gap-4">
-          <div className="flex flex-wrap items-center gap-2">
+      <InternalHero
+        title={item.name}
+        description={item.description || "No description provided for this catalog item."}
+        className="from-cyan-950 via-slate-900 to-blue-950"
+        meta={
+          <>
             <Badge className="bg-white/15 text-white hover:bg-white/15">{item.categoryName}</Badge>
             <Badge variant="outline" className="border-white/25 text-white">
               {item.id}
@@ -168,13 +169,9 @@ export default async function CatalogDetailPage({ params }: CatalogDetailPagePro
                 Backorder
               </Badge>
             )}
-          </div>
-          <CardTitle className="text-2xl leading-tight md:text-3xl">{item.name}</CardTitle>
-          <p className="max-w-4xl text-sm text-slate-200">
-            {item.description || "No description provided for this catalog item."}
-          </p>
-        </CardHeader>
-      </Card>
+          </>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card className="border-slate-200/80">
@@ -300,6 +297,6 @@ export default async function CatalogDetailPage({ params }: CatalogDetailPagePro
           </CardContent>
         </Card>
       ) : null}
-    </div>
+    </InternalPageTemplate>
   )
 }

@@ -286,9 +286,9 @@ export default function PurchaseOrdersPageComponent() {
   )
 
   return (
-    <div className="flex h-[calc(100svh-var(--header-height)-2rem)] w-full max-w-full min-w-0 flex-col gap-6 overflow-hidden lg:h-[calc(100svh-var(--header-height)-3rem)]">
-      <div className="flex flex-wrap items-center md:justify-end w-full gap-4">
-        <div className="flex w-full flex-wrap md:justify-end items-center gap-3 md:w-auto">
+    <div className="flex h-[calc(100svh-var(--header-height)-2rem)] min-h-[540px] w-full max-w-full min-w-0 flex-col gap-6 overflow-hidden lg:h-[calc(100svh-var(--header-height)-3rem)]">
+      <div className="flex w-full flex-wrap items-center gap-4 md:justify-end">
+        <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:justify-end">
           <div className="relative w-full md:w-72">
             <Search className="text-muted-foreground pointer-events-none absolute left-3 top-2.5 size-4" />
             <Input
@@ -303,7 +303,7 @@ export default function PurchaseOrdersPageComponent() {
             <ListFilter />
             Filters
           </Button> */}
-          <Button asChild className="h-10 px-4">
+          <Button asChild className="h-10 w-full px-4 sm:w-auto">
             <Link href="/purchase-orders/new">
               <PlusCircle />
               Create Purchase Order
@@ -318,13 +318,13 @@ export default function PurchaseOrdersPageComponent() {
             KANBAN_DRAG_ENABLED ? onDragEnd : () => undefined
           }
         >
-          <div className="h-full overflow-x-auto overflow-y-auto pb-2">
+          <div className="h-full overflow-auto pb-2">
             <div className="flex min-h-full min-w-max gap-3">
               {isInitialLoad
                 ? COLUMN_ORDER.map((columnId) => {
                   const column = board.columns[columnId]
                   return (
-                    <div key={column.id} className="bg-muted/50 flex h-full min-h-[380px] w-[300px] shrink-0 flex-col rounded-2xl p-3">
+                    <div key={column.id} className="bg-muted/50 flex h-full min-h-[380px] w-[280px] shrink-0 flex-col rounded-2xl p-3 sm:w-[300px]">
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <h2 className="text-base font-semibold">{column.title}</h2>

@@ -16,8 +16,10 @@ const InternalLayout = ({ children }: { children: React.ReactNode }) => {
             <AppSidebar variant="inset" />
             <SidebarInset className="min-w-0 overflow-hidden">
                 <SiteHeader />
-                <main className="p-4 lg:p-6 min-w-0">
-                    {children}
+                <main className="min-w-0 p-4 lg:p-6">
+                    <div className="mx-auto w-full max-w-[1600px] min-w-0">
+                        {children}
+                    </div>
                 </main>
             </SidebarInset>
         </SidebarProvider>

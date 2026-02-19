@@ -29,7 +29,7 @@ export default function ControlledModal({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px]" />
         <Dialog.Content
           className={cn(
-            "bg-background fixed top-1/2 left-1/2 z-50 w-[min(92vw,640px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border p-0 shadow-2xl",
+            "bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[90svh] w-[min(92vw,640px)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border p-0 shadow-2xl",
             className
           )}
         >
@@ -49,7 +49,7 @@ export default function ControlledModal({
             </div>
           </div>
 
-          <div className="p-5">{children}</div>
+          <div className="overflow-y-auto p-5">{children}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

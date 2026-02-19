@@ -28,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+import { InternalHero, InternalPageTemplate } from "@/components/templates/internal-page-template"
 import { CreatePoFromCatalogModal, type CatalogRowForQuickPo } from "./create-po-modal"
 
 type CatalogApiItem = {
@@ -385,18 +386,14 @@ export default function CatalogPageComponent() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5">
-      <Card className="border-none bg-gradient-to-r from-cyan-900 via-slate-900 to-emerald-900 text-white shadow-lg">
-        <CardHeader className="space-y-3">
-          <Badge className="w-fit bg-white/15 text-white hover:bg-white/15">Catalog</Badge>
-          <CardTitle className="text-2xl md:text-3xl">
-            Industrial Catalog Intelligence
-          </CardTitle>
-          <p className="max-w-3xl text-sm text-slate-200">
-            Explore standardized catalog items, compare supplier options, and open each item for complete technical details.
-          </p>
-        </CardHeader>
-      </Card>
+    <InternalPageTemplate className="gap-5">
+      <InternalHero
+        eyebrow="Catalog"
+        title="Industrial Catalog Intelligence"
+        description="Explore standardized catalog items, compare supplier options, and open each item for complete technical details."
+        className="from-cyan-900 via-slate-900 to-emerald-900"
+        contentClassName="space-y-3"
+      />
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
@@ -454,7 +451,7 @@ export default function CatalogPageComponent() {
             >
               <Filter className="h-4 w-4" />
             </Button>
-            <div className="flex w-full min-w-72 flex-col gap-2 md:w-80">
+            <div className="flex w-full flex-col gap-2 md:w-80">
               <Label htmlFor="catalog-search">Search Catalog</Label>
               <Input
                 id="catalog-search"
@@ -463,7 +460,7 @@ export default function CatalogPageComponent() {
                 onChange={(event) => setSearchInput(event.target.value)}
               />
             </div>
-            <div className="flex min-w-56 flex-col gap-2">
+            <div className="flex w-full flex-col gap-2 md:w-56">
               <Label htmlFor="catalog-sort">Sort by</Label>
               <Select
                 value={sort}
@@ -484,7 +481,7 @@ export default function CatalogPageComponent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex min-w-56 flex-col gap-2">
+            <div className="flex w-full flex-col gap-2 md:w-56">
               <Label htmlFor="catalog-simulate-delay">Search Delay ({simulateDelayMs}ms)</Label>
               <Input
                 id="catalog-simulate-delay"
@@ -618,7 +615,7 @@ export default function CatalogPageComponent() {
                 Showing page {page} of {totalPages} ({total} total items)
               </p>
             )}
-            <div className="flex items-center gap-3">
+            <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:justify-end">
               <div className="flex items-center gap-2">
                 <Label htmlFor="catalog-rows-per-page" className="text-sm">Rows per page</Label>
                 <Select
@@ -718,6 +715,6 @@ export default function CatalogPageComponent() {
         }}
         catalogItem={createPoSourceItem}
       />
-    </div>
+    </InternalPageTemplate>
   )
 }

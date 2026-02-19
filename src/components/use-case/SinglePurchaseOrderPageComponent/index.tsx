@@ -1,9 +1,14 @@
-import Link from "next/link"
-import { ArrowLeft, CalendarClock, CircleCheckBig, CircleDashed, CircleX } from "lucide-react"
+import { CalendarClock, CircleCheckBig, CircleDashed, CircleX } from "lucide-react"
 
-import { apiFetch } from "@/lib/api-fetch"
+import TableScrollContainer from "@/components/common/table-scroll-container"
+import {
+  InternalHero,
+  InternalPageBackLink,
+  InternalPageTemplate,
+} from "@/components/templates/internal-page-template"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { apiFetch } from "@/lib/api-fetch"
 import StatusActionButtons from "./status-action-buttons"
 
 type IProps = {
@@ -270,12 +275,8 @@ const getTimelineIcon = (key: PurchaseOrderTimelineKey, active: boolean) => {
   return <CircleCheckBig className="size-4 text-emerald-600" />
 }
 
-const getTimelineMeta = (key: PurchaseOrderTimelineKey, entry: TimelineEntry) => {
+const getTimelineMeta = (_key: PurchaseOrderTimelineKey, entry: TimelineEntry) => {
   if (!entry) return "Pending"
-  if (key === "created") return `By ${entry.actor}`
-  if (key === "submitted") return `By ${entry.actor}`
-  if (key === "approved") return `By ${entry.actor}`
-  if (key === "rejected") return `By ${entry.actor}`
   return `By ${entry.actor}`
 }
 
@@ -284,14 +285,8 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
 
   if (!purchaseOrder) {
     return (
-      <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
-        <Link
-          href="/purchase-orders"
-          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
-        >
-          <ArrowLeft className="size-4" />
-          Back to purchase orders
-        </Link>
+      <InternalPageTemplate className="gap-4">
+        <InternalPageBackLink href="/purchase-orders" label="Back to purchase orders" />
         <Card>
           <CardContent className="p-8 text-center">
             <p className="text-lg font-semibold">Purchase order not found</p>
@@ -300,44 +295,35 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </InternalPageTemplate>
     )
   }
 
   return (
-    <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
-      <Link
-        href="/purchase-orders"
-        className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
-      >
-        <ArrowLeft className="size-4" />
-        Back to purchase orders
-      </Link>
+    <InternalPageTemplate>
+      <InternalPageBackLink href="/purchase-orders" label="Back to purchase orders" />
 
-      <Card className="overflow-hidden border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
-        <CardHeader className="gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{purchaseOrder.id}</Badge>
-              {purchaseOrder.poNumber ? (
-                <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
-                  {purchaseOrder.poNumber}
-                </Badge>
-              ) : null}
-              {getStatusBadge(purchaseOrder.status)}
-            </div>
-            <StatusActionButtons
-              purchaseOrderId={purchaseOrder.id}
-              status={purchaseOrder.status}
-            />
-          </div>
-          <CardTitle className="text-2xl leading-tight md:text-3xl">{purchaseOrder.supplierName}</CardTitle>
-          <p className="text-sm text-slate-200">
-            Requested by {purchaseOrder.requestedBy}
-            {purchaseOrder.poNumber ? ` • Internal ID ${purchaseOrder.id}` : ""}
-          </p>
-        </CardHeader>
-      </Card>
+      <InternalHero
+        title={purchaseOrder.supplierName}
+        description={`Requested by ${purchaseOrder.requestedBy}${purchaseOrder.poNumber ? ` - Internal ID ${purchaseOrder.id}` : ""}`}
+        actions={
+          <StatusActionButtons
+            purchaseOrderId={purchaseOrder.id}
+            status={purchaseOrder.status}
+          />
+        }
+        meta={
+          <>
+            <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{purchaseOrder.id}</Badge>
+            {purchaseOrder.poNumber ? (
+              <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
+                {purchaseOrder.poNumber}
+              </Badge>
+            ) : null}
+            {getStatusBadge(purchaseOrder.status)}
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -374,7 +360,7 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
             <CardTitle>Purchase Order Items</CardTitle>
           </CardHeader>
           <CardContent className="px-0">
-            <div className="overflow-x-auto">
+            <TableScrollContainer innerClassName="min-w-[760px]">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-muted-foreground border-b text-left">
@@ -411,7 +397,7 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </TableScrollContainer>
           </CardContent>
         </Card>
 
@@ -448,7 +434,7 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
           {purchaseOrder.statusHistory.length === 0 ? (
             <p className="text-muted-foreground text-sm">No status transitions recorded yet.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <TableScrollContainer innerClassName="min-w-[560px]">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-muted-foreground border-b text-left">
@@ -469,7 +455,7 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScrollContainer>
           )}
         </CardContent>
       </Card>
@@ -478,7 +464,7 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
         <CalendarClock className="size-4" />
         Last updated from timeline data
       </div>
-    </div>
+    </InternalPageTemplate>
   )
 }
 

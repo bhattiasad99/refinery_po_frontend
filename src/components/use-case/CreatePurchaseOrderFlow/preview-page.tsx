@@ -171,7 +171,7 @@ export default function CreatePurchaseOrderPreview({
                         <div key={item.id} className="rounded-md border border-slate-200 p-2">
                           <p className="text-sm font-semibold text-slate-900">{item.item}</p>
                           <p className="text-xs text-slate-600">
-                            {item.quantity} x {currencyFormatter.format(item.unitPrice)} • {item.category}
+                            {item.quantity} x {currencyFormatter.format(item.unitPrice)} - {item.category}
                           </p>
                           <p className="mt-1 text-xs font-semibold text-slate-800">
                             Line Total: {currencyFormatter.format(item.quantity * item.unitPrice)}
@@ -211,7 +211,7 @@ export default function CreatePurchaseOrderPreview({
             </>
           )}
 
-          <div className="mt-2 flex items-center justify-between gap-3">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <Button
               variant="outline"
               onClick={() => router.push(`/purchase-orders/new/step-3/${draftId}`)}
@@ -234,3 +234,4 @@ export default function CreatePurchaseOrderPreview({
     </StepShell>
   )
 }
+

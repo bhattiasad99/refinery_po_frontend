@@ -1,15 +1,19 @@
 "use client"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { FocusEvent, useEffect, useMemo, useState } from "react"
-import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 
 import ControlledModal from "@/components/common/ControlledModal"
 import SearchableDropdown, {
   type SearchableDropdownOption,
 } from "@/components/common/SearchableDropdown"
+import TableScrollContainer from "@/components/common/table-scroll-container"
+import {
+  InternalHero,
+  InternalPageBackLink,
+  InternalPageTemplate,
+} from "@/components/templates/internal-page-template"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -518,57 +522,49 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
   }
 
   return (
-    <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
-      <Link
-        href="/purchase-orders"
-        className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
-      >
-        <ArrowLeft className="size-4" />
-        Back to purchase orders
-      </Link>
+    <InternalPageTemplate>
+      <InternalPageBackLink href="/purchase-orders" label="Back to purchase orders" />
 
-      <Card className="overflow-hidden border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
-        <CardHeader className="gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{displayOrder.id}</Badge>
-              <Badge variant="secondary" className="bg-white text-slate-900 hover:bg-white">
-                Edit Mode
-              </Badge>
-              <Badge className="bg-white/15 text-white capitalize hover:bg-white/15">
-                {displayOrder.status}
-              </Badge>
-              {hasPendingChanges ? (
-                <Badge className="bg-amber-500 text-black hover:bg-amber-500">Unsaved Changes</Badge>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                className="bg-white/15 text-white hover:bg-white/25"
-                disabled={!hasPendingChanges || isSaving || isLoadingOrder}
-                onClick={onPageSaveChanges}
-              >
-                {isSaving ? "Saving..." : "Save Changes"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-white/30 bg-transparent text-white hover:bg-white/10"
-                disabled={!hasPendingChanges || isSaving || isLoadingOrder}
-                onClick={onPageCancelChanges}
-              >
-                Cancel
-              </Button>
-            </div>
+      <InternalHero
+        title="Edit Purchase Order"
+        description="Review and update this purchase order. Changes are saved through the purchase-order API."
+        meta={
+          <>
+            <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{displayOrder.id}</Badge>
+            <Badge variant="secondary" className="bg-white text-slate-900 hover:bg-white">
+              Edit Mode
+            </Badge>
+            <Badge className="bg-white/15 text-white capitalize hover:bg-white/15">
+              {displayOrder.status}
+            </Badge>
+            {hasPendingChanges ? (
+              <Badge className="bg-amber-500 text-black hover:bg-amber-500">Unsaved Changes</Badge>
+            ) : null}
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="bg-white/15 text-white hover:bg-white/25"
+              disabled={!hasPendingChanges || isSaving || isLoadingOrder}
+              onClick={onPageSaveChanges}
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-white/30 bg-transparent text-white hover:bg-white/10"
+              disabled={!hasPendingChanges || isSaving || isLoadingOrder}
+              onClick={onPageCancelChanges}
+            >
+              Cancel
+            </Button>
           </div>
-          <CardTitle className="text-2xl leading-tight md:text-3xl">Edit Purchase Order</CardTitle>
-          <p className="text-sm text-slate-200">
-            Review and update this purchase order. Changes are saved through the purchase-order API.
-          </p>
-        </CardHeader>
-      </Card>
+        }
+      />
 
       {isLoadingOrder ? (
         <Card>
@@ -631,8 +627,8 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
             <p className="text-muted-foreground text-xs">Supplier Name</p>
             <p className="text-sm font-medium">{displayOrder.step2.supplierName || "-"}</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
+          <TableScrollContainer innerClassName="min-w-[820px]">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b text-left">
                   <th className="px-6 py-3 font-medium">Item ID</th>
@@ -672,7 +668,7 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </TableScrollContainer>
         </CardContent>
       </Card>
 
@@ -739,7 +735,7 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Button variant="outline" disabled={!hasPendingChanges || isSaving || isLoadingOrder} onClick={onPageCancelChanges}>
           Cancel
         </Button>
@@ -1097,6 +1093,6 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
           onSave={onSaveItem}
         />
       ) : null}
-    </div>
+    </InternalPageTemplate>
   )
 }
