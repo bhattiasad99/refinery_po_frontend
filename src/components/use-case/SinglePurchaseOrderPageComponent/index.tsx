@@ -3,8 +3,8 @@ import { ArrowLeft, CalendarClock, CircleCheckBig, CircleDashed, CircleX } from 
 
 import { apiFetch } from "@/lib/api-fetch"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import StatusActionButtons from "./status-action-buttons"
 
 type IProps = {
   id: string
@@ -26,6 +26,14 @@ type PurchaseOrderLineItem = {
 type PurchaseOrderApiRow = {
   id: string
   status: string
+  submittedAt: string | null
+  submittedBy: string | null
+  approvedAt: string | null
+  approvedBy: string | null
+  rejectedAt: string | null
+  rejectedBy: string | null
+  fulfilledAt: string | null
+  fulfilledBy: string | null
   supplierName: string | null
   requestedByDepartment: string | null
   requestedByUser: string | null
@@ -96,22 +104,49 @@ function buildTimeline(viewModel: {
   status: PurchaseOrderViewModel["status"]
   createdAt: string
   updatedAt: string
-  actor: string
+  createdBy: string
+  submittedAt: string | null
+  submittedBy: string | null
+  approvedAt: string | null
+  approvedBy: string | null
+  rejectedAt: string | null
+  rejectedBy: string | null
+  fulfilledAt: string | null
+  fulfilledBy: string | null
 }): Record<PurchaseOrderTimelineKey, TimelineEntry> {
-  const created = { time: viewModel.createdAt, actor: viewModel.actor }
+  const created = { time: viewModel.createdAt, actor: viewModel.createdBy }
   const submitted =
+    viewModel.submittedAt ||
     viewModel.status === "submitted" ||
     viewModel.status === "approved" ||
     viewModel.status === "rejected" ||
     viewModel.status === "fulfilled"
-      ? { time: viewModel.updatedAt, actor: viewModel.actor }
+      ? {
+          time: viewModel.submittedAt ?? viewModel.updatedAt,
+          actor: viewModel.submittedBy ?? "Unknown User",
+        }
       : null
   const approved =
-    viewModel.status === "approved" || viewModel.status === "fulfilled"
-      ? { time: viewModel.updatedAt, actor: viewModel.actor }
+    viewModel.approvedAt || viewModel.status === "approved" || viewModel.status === "fulfilled"
+      ? {
+          time: viewModel.approvedAt ?? viewModel.updatedAt,
+          actor: viewModel.approvedBy ?? "Unknown User",
+        }
       : null
-  const rejected = viewModel.status === "rejected" ? { time: viewModel.updatedAt, actor: viewModel.actor } : null
-  const fulfilled = viewModel.status === "fulfilled" ? { time: viewModel.updatedAt, actor: viewModel.actor } : null
+  const rejected =
+    viewModel.rejectedAt || viewModel.status === "rejected"
+      ? {
+          time: viewModel.rejectedAt ?? viewModel.updatedAt,
+          actor: viewModel.rejectedBy ?? "Unknown User",
+        }
+      : null
+  const fulfilled =
+    viewModel.fulfilledAt || viewModel.status === "fulfilled"
+      ? {
+          time: viewModel.fulfilledAt ?? viewModel.updatedAt,
+          actor: viewModel.fulfilledBy ?? "Unknown User",
+        }
+      : null
 
   return {
     created,
@@ -124,13 +159,13 @@ function buildTimeline(viewModel: {
 
 function mapPurchaseOrderToViewModel(purchaseOrder: PurchaseOrderApiRow): PurchaseOrderViewModel {
   const status = normalizeStatus(purchaseOrder.status)
-  const actor = purchaseOrder.requestedByUser ?? "Unknown User"
+  const createdBy = purchaseOrder.requestedByUser ?? "Unknown User"
 
   return {
     id: purchaseOrder.id,
     status,
     supplierName: purchaseOrder.supplierName ?? "Unknown Supplier",
-    requestedBy: purchaseOrder.requestedByDepartment ?? actor,
+    requestedBy: purchaseOrder.requestedByDepartment ?? createdBy,
     createdAt: purchaseOrder.createdAt,
     updatedAt: purchaseOrder.updatedAt,
     lineItems: purchaseOrder.lineItems ?? [],
@@ -139,7 +174,15 @@ function mapPurchaseOrderToViewModel(purchaseOrder: PurchaseOrderApiRow): Purcha
       status,
       createdAt: purchaseOrder.createdAt,
       updatedAt: purchaseOrder.updatedAt,
-      actor,
+      createdBy,
+      submittedAt: purchaseOrder.submittedAt,
+      submittedBy: purchaseOrder.submittedBy,
+      approvedAt: purchaseOrder.approvedAt,
+      approvedBy: purchaseOrder.approvedBy,
+      rejectedAt: purchaseOrder.rejectedAt,
+      rejectedBy: purchaseOrder.rejectedBy,
+      fulfilledAt: purchaseOrder.fulfilledAt,
+      fulfilledBy: purchaseOrder.fulfilledBy,
     }),
   }
 }
@@ -176,13 +219,6 @@ const getStatusBadge = (status: PurchaseOrderViewModel["status"]) => {
   }
 
   return <Badge variant="secondary">Draft</Badge>
-}
-
-const getHeaderActions = (status: PurchaseOrderViewModel["status"]) => {
-  if (status === "draft") return ["Edit", "Submit"]
-  if (status === "submitted") return ["Approve", "Reject"]
-  if (status === "approved") return ["Fulfill"]
-  return []
 }
 
 const getTimelineIcon = (key: PurchaseOrderTimelineKey, active: boolean) => {
@@ -225,8 +261,6 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
     )
   }
 
-  const headerActions = getHeaderActions(purchaseOrder.status)
-
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
       <Link
@@ -244,38 +278,10 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
               <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{purchaseOrder.id}</Badge>
               {getStatusBadge(purchaseOrder.status)}
             </div>
-            {headerActions.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                {headerActions.map((action) =>
-                  action === "Edit" ? (
-                    <Button
-                      key={action}
-                      asChild
-                      size="sm"
-                      variant="secondary"
-                      className="bg-white/15 text-white hover:bg-white/25"
-                    >
-                      <Link href={`/purchase-orders/${purchaseOrder.id}/edit`}>{action}</Link>
-                    </Button>
-                  ) : (
-                    <Button
-                      key={action}
-                      size="sm"
-                      variant={action === "Reject" ? "destructive" : "secondary"}
-                      className={
-                        action === "Reject"
-                          ? ""
-                          : action === "Submit" || action === "Approve" || action === "Fulfill"
-                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                            : "bg-white/15 text-white hover:bg-white/25"
-                      }
-                    >
-                      {action}
-                    </Button>
-                  )
-                )}
-              </div>
-            )}
+            <StatusActionButtons
+              purchaseOrderId={purchaseOrder.id}
+              status={purchaseOrder.status}
+            />
           </div>
           <CardTitle className="text-2xl leading-tight md:text-3xl">{purchaseOrder.supplierName}</CardTitle>
           <p className="text-sm text-slate-200">Requested by {purchaseOrder.requestedBy}</p>

@@ -1,8 +1,11 @@
 "use client"
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { Filter } from "lucide-react"
 
+import ControlledSheet from "@/components/common/ControlledSheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -23,8 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
 import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+import { CreatePoFromCatalogModal, type CatalogRowForQuickPo } from "./create-po-modal"
 
 type CatalogApiItem = {
   id: string
@@ -34,6 +38,7 @@ type CatalogApiItem = {
   leadTimeDays: number
   priceUsd: number
   inStock: boolean
+  description?: string | null
 }
 
 type CatalogListResponse = {
@@ -46,15 +51,98 @@ type CatalogListResponse = {
   inStockCount: number
 }
 
+type CatalogFilterOptionsResponse = {
+  categories: string[]
+  suppliers: string[]
+}
+
+type CatalogSortOption =
+  | "price_asc"
+  | "price_desc"
+  | "lead_time_asc"
+  | "lead_time_desc"
+  | "supplier_asc"
+
+type InStockDraftOption = "all" | "true" | "false"
+
+const SORT_OPTIONS: ReadonlyArray<{ value: CatalogSortOption; label: string }> = [
+  { value: "price_asc", label: "Price Low to High" },
+  { value: "price_desc", label: "Price High to Low" },
+  { value: "lead_time_asc", label: "Lead Time Low to High" },
+  { value: "lead_time_desc", label: "Lead Time High to Low" },
+  { value: "supplier_asc", label: "Supplier A-Z" },
+]
+
+const SORT_OPTION_VALUES = new Set<CatalogSortOption>(SORT_OPTIONS.map((entry) => entry.value))
+const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100] as const
+const CATEGORY_ALL_VALUE = "__all__"
+
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 2,
 })
 
-const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100] as const
+function parseInStock(value: string | null): boolean | null {
+  if (value === "true") {
+    return true
+  }
+  if (value === "false") {
+    return false
+  }
+  return null
+}
+
+function toInStockDraft(value: boolean | null): InStockDraftOption {
+  if (value === true) {
+    return "true"
+  }
+  if (value === false) {
+    return "false"
+  }
+  return "all"
+}
+
+function parseSort(value: string | null): CatalogSortOption {
+  if (value && SORT_OPTION_VALUES.has(value as CatalogSortOption)) {
+    return value as CatalogSortOption
+  }
+  return "price_asc"
+}
+
+function buildStateUrl(
+  pathname: string,
+  state: {
+    search: string
+    category: string
+    inStock: boolean | null
+    sort: CatalogSortOption
+  }
+): string {
+  const params = new URLSearchParams()
+  if (state.search) {
+    params.set("q", state.search)
+  }
+  if (state.category) {
+    params.set("category", state.category)
+  }
+  if (state.inStock !== null) {
+    params.set("inStock", String(state.inStock))
+  }
+  params.set("sort", state.sort)
+
+  const queryString = params.toString()
+  return queryString ? `${pathname}?${queryString}` : pathname
+}
 
 export default function CatalogPageComponent() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const searchParamsString = searchParams.toString()
+
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+
   const [items, setItems] = useState<CatalogApiItem[]>([])
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
@@ -66,13 +154,68 @@ export default function CatalogPageComponent() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const [searchDraft, setSearchDraft] = useState("")
+  const [searchInput, setSearchInput] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [sort, setSort] = useState<CatalogSortOption>("price_asc")
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([])
+  const [supplierOptions, setSupplierOptions] = useState<string[]>([])
+
+  const [appliedCategory, setAppliedCategory] = useState("")
+  const [appliedInStock, setAppliedInStock] = useState<boolean | null>(null)
   const [categoryDraft, setCategoryDraft] = useState("")
-  const [search, setSearch] = useState("")
-  const [category, setCategory] = useState("")
+  const [inStockDraft, setInStockDraft] = useState<InStockDraftOption>("all")
+  const [createPoSourceItem, setCreatePoSourceItem] = useState<CatalogRowForQuickPo | null>(null)
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(searchParamsString)
+    const qValue = urlParams.get("q")?.trim() ?? urlParams.get("search")?.trim() ?? ""
+    const categoryValue = urlParams.get("category")?.trim() ?? ""
+    const inStockValue = parseInStock(urlParams.get("inStock"))
+    const sortValue = parseSort(urlParams.get("sort"))
+
+    setSearchInput(qValue)
+    setDebouncedSearch(qValue)
+    setAppliedCategory(categoryValue)
+    setAppliedInStock(inStockValue)
+    setCategoryDraft(categoryValue)
+    setInStockDraft(toInStockDraft(inStockValue))
+    setSort(sortValue)
+    setPage(1)
+  }, [searchParamsString])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim())
+      setPage(1)
+    }, 380)
+
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  useEffect(() => {
+    const currentParams = new URLSearchParams(searchParamsString)
+    const currentCanonicalUrl = buildStateUrl(pathname, {
+      search: currentParams.get("q")?.trim() ?? currentParams.get("search")?.trim() ?? "",
+      category: currentParams.get("category")?.trim() ?? "",
+      inStock: parseInStock(currentParams.get("inStock")),
+      sort: parseSort(currentParams.get("sort")),
+    })
+    const nextUrl = buildStateUrl(pathname, {
+      search: debouncedSearch,
+      category: appliedCategory.trim(),
+      inStock: appliedInStock,
+      sort,
+    })
+
+    if (nextUrl !== currentCanonicalUrl) {
+      router.replace(nextUrl, { scroll: false })
+    }
+  }, [appliedCategory, appliedInStock, debouncedSearch, pathname, router, searchParamsString, sort])
 
   const totalPages = useMemo(() => Math.max(Math.ceil(total / limit), 1), [total, limit])
   const isInitialLoad = isLoading && !hasLoadedOnce
+  const categorySelectValue = categoryDraft.length > 0 ? categoryDraft : CATEGORY_ALL_VALUE
+  const hasDraftCategoryOption = categoryDraft.length > 0 && categoryOptions.includes(categoryDraft)
 
   const fetchCatalog = useCallback(
     async (signal?: AbortSignal) => {
@@ -83,13 +226,17 @@ export default function CatalogPageComponent() {
         const params = new URLSearchParams({
           page: String(page),
           limit: String(limit),
+          sort,
         })
 
-        if (search.trim().length > 0) {
-          params.set("search", search.trim())
+        if (debouncedSearch.length > 0) {
+          params.set("q", debouncedSearch)
         }
-        if (category.trim().length > 0) {
-          params.set("category", category.trim())
+        if (appliedCategory.trim().length > 0) {
+          params.set("category", appliedCategory.trim())
+        }
+        if (appliedInStock !== null) {
+          params.set("inStock", String(appliedInStock))
         }
 
         const response = await fetch(`/api/catalog?${params.toString()}`, {
@@ -129,8 +276,38 @@ export default function CatalogPageComponent() {
         setIsLoading(false)
       }
     },
-    [category, limit, page, search]
+    [appliedCategory, appliedInStock, debouncedSearch, limit, page, sort]
   )
+
+  const fetchCatalogFilterOptions = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const response = await fetch("/api/catalog/filters", {
+        method: "GET",
+        cache: "no-store",
+        signal,
+      })
+      const payload = (await response.json()) as
+        | CatalogFilterOptionsResponse
+        | { message?: string }
+
+      if (handleGatewayUnavailableLogout(response.status, payload)) {
+        return
+      }
+      if (!response.ok) {
+        return
+      }
+
+      const optionsPayload = payload as CatalogFilterOptionsResponse
+      setCategoryOptions(Array.isArray(optionsPayload.categories) ? optionsPayload.categories : [])
+      setSupplierOptions(Array.isArray(optionsPayload.suppliers) ? optionsPayload.suppliers : [])
+    } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        return
+      }
+      setCategoryOptions([])
+      setSupplierOptions([])
+    }
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -138,19 +315,22 @@ export default function CatalogPageComponent() {
     return () => controller.abort()
   }, [fetchCatalog])
 
-  function onApplyFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetchCatalogFilterOptions(controller.signal)
+    return () => controller.abort()
+  }, [fetchCatalogFilterOptions])
+
+  function applyFilters() {
+    setAppliedCategory(categoryDraft.trim())
+    setAppliedInStock(parseInStock(inStockDraft))
     setPage(1)
-    setSearch(searchDraft)
-    setCategory(categoryDraft)
+    setIsFilterSheetOpen(false)
   }
 
-  function clearFilters() {
-    setSearchDraft("")
+  function clearFilterDraft() {
     setCategoryDraft("")
-    setSearch("")
-    setCategory("")
-    setPage(1)
+    setInStockDraft("all")
   }
 
   function goToPreviousPage() {
@@ -161,9 +341,20 @@ export default function CatalogPageComponent() {
     setPage((current) => Math.min(current + 1, totalPages))
   }
 
+  function openCreatePoModal(item: CatalogApiItem) {
+    setCreatePoSourceItem({
+      id: item.id,
+      name: item.name,
+      categoryName: item.categoryName,
+      supplierName: item.supplierName,
+      priceUsd: item.priceUsd,
+      description: item.description ?? undefined,
+    })
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-5">
-      <Card className="border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
+      <Card className="border-none bg-gradient-to-r from-cyan-900 via-slate-900 to-emerald-900 text-white shadow-lg">
         <CardHeader className="space-y-3">
           <Badge className="w-fit bg-white/15 text-white hover:bg-white/15">Catalog</Badge>
           <CardTitle className="text-2xl md:text-3xl">
@@ -219,34 +410,56 @@ export default function CatalogPageComponent() {
       </div>
 
       <Card className="border-border/70 overflow-hidden">
-        <CardHeader className="flex flex-col gap-4 pb-1 md:flex-row md:items-end md:justify-between">
+        <CardHeader className="flex flex-col gap-4 pb-1">
           <CardTitle className="text-lg">Catalog Items</CardTitle>
-          <form onSubmit={onApplyFilters} className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
-            <div className="flex min-w-48 flex-col gap-2">
-              <Label htmlFor="catalog-search">Search</Label>
+          <div className="flex w-full flex-col gap-3 md:flex-row md:items-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Open filters"
+              onClick={() => setIsFilterSheetOpen(true)}
+            >
+              <Filter className="h-4 w-4" />
+            </Button>
+            <div className="flex w-full min-w-72 flex-col gap-2 md:w-80">
+              <Label htmlFor="catalog-search">Search Catalog</Label>
               <Input
                 id="catalog-search"
-                placeholder="ID, name, supplier..."
-                value={searchDraft}
-                onChange={(event) => setSearchDraft(event.target.value)}
+                placeholder="Name, ID, supplier, manufacturer, model"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
               />
             </div>
-            <div className="flex min-w-40 flex-col gap-2">
-              <Label htmlFor="catalog-category">Category</Label>
-              <Input
-                id="catalog-category"
-                placeholder="Exact category"
-                value={categoryDraft}
-                onChange={(event) => setCategoryDraft(event.target.value)}
-              />
+            <div className="flex min-w-56 flex-col gap-2">
+              <Label htmlFor="catalog-sort">Sort by</Label>
+              <Select
+                value={sort}
+                onValueChange={(value) => {
+                  setSort(value as CatalogSortOption)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger id="catalog-sort">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex items-end gap-2">
-              <Button type="submit" disabled={isLoading}>Apply</Button>
-              <Button type="button" variant="outline" onClick={clearFilters} disabled={isLoading}>
-                Clear
-              </Button>
-            </div>
-          </form>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            {appliedCategory ? <Badge variant="outline">Category: {appliedCategory}</Badge> : null}
+            {appliedInStock === true ? <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">In Stock only</Badge> : null}
+            {appliedInStock === false ? <Badge variant="secondary">Backorder only</Badge> : null}
+            <Badge variant="outline">Categories: {categoryOptions.length}</Badge>
+            <Badge variant="outline">Suppliers: {supplierOptions.length}</Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoading && hasLoadedOnce ? (
@@ -270,6 +483,7 @@ export default function CatalogPageComponent() {
                   <TableHead className="text-right">Lead Time</TableHead>
                   <TableHead className="text-right">Price</TableHead>
                   <TableHead>Stock</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -297,11 +511,14 @@ export default function CatalogPageComponent() {
                       <TableCell>
                         <Skeleton className="h-6 w-20 rounded-full" />
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="ml-auto h-9 w-24 rounded-md" />
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">No catalog items found.</TableCell>
+                    <TableCell colSpan={7} className="h-24 text-center">No catalog items found.</TableCell>
                   </TableRow>
                 ) : (
                   items.map((item) => (
@@ -326,6 +543,11 @@ export default function CatalogPageComponent() {
                         ) : (
                           <Badge variant="secondary">Backorder</Badge>
                         )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button type="button" size="sm" onClick={() => openCreatePoModal(item)}>
+                          Create PO
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -375,6 +597,73 @@ export default function CatalogPageComponent() {
           </div>
         </CardContent>
       </Card>
+
+      <ControlledSheet
+        open={isFilterSheetOpen}
+        onOpenChange={setIsFilterSheetOpen}
+        title="Catalog Filters"
+        description="Adjust filters and apply when ready. Categories and suppliers are loaded from backend catalog data."
+        footer={
+          <div className="flex w-full items-center justify-between gap-2">
+            <Button type="button" variant="outline" onClick={clearFilterDraft}>
+              Clear
+            </Button>
+            <Button type="button" onClick={applyFilters}>
+              Apply Filters
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="catalog-category-filter">Category</Label>
+            <Select
+              value={categorySelectValue}
+              onValueChange={(value) => {
+                setCategoryDraft(value === CATEGORY_ALL_VALUE ? "" : value)
+              }}
+            >
+              <SelectTrigger id="catalog-category-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={CATEGORY_ALL_VALUE}>All Categories</SelectItem>
+                {categoryOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+                {!hasDraftCategoryOption && categoryDraft ? (
+                  <SelectItem value={categoryDraft}>{categoryDraft}</SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="catalog-stock-filter">Stock Status</Label>
+            <Select value={inStockDraft} onValueChange={(value) => setInStockDraft(value as InStockDraftOption)}>
+              <SelectTrigger id="catalog-stock-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Items</SelectItem>
+                <SelectItem value="true">In Stock Only</SelectItem>
+                <SelectItem value="false">Backorder Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </ControlledSheet>
+
+      <CreatePoFromCatalogModal
+        open={createPoSourceItem !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreatePoSourceItem(null)
+          }
+        }}
+        catalogItem={createPoSourceItem}
+      />
     </div>
   )
 }

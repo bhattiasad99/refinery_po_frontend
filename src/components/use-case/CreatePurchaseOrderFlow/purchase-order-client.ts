@@ -34,6 +34,14 @@ type PurchaseOrderMilestoneApi = {
 export type PurchaseOrderApiResponse = {
   id: string
   status: string
+  submittedAt: string | null
+  submittedBy: string | null
+  approvedAt: string | null
+  approvedBy: string | null
+  rejectedAt: string | null
+  rejectedBy: string | null
+  fulfilledAt: string | null
+  fulfilledBy: string | null
   requestedByDepartment: string | null
   requestedByUser: string | null
   budgetCode: string | null
@@ -155,6 +163,27 @@ export async function submitPurchaseOrder(purchaseOrderId: string): Promise<Purc
     method: "POST",
   })
   return parseResponse<PurchaseOrderApiResponse>(response, "Failed to submit purchase order")
+}
+
+export async function approvePurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
+  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/approve`, {
+    method: "POST",
+  })
+  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to approve purchase order")
+}
+
+export async function rejectPurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
+  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/reject`, {
+    method: "POST",
+  })
+  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to reject purchase order")
+}
+
+export async function fulfillPurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
+  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/fulfill`, {
+    method: "POST",
+  })
+  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to fulfill purchase order")
 }
 
 function resolvePaymentTermOption(purchaseOrder: PurchaseOrderApiResponse): PaymentTermOption {

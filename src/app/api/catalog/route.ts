@@ -34,14 +34,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     })
 
     const search = searchParams.get("search")?.trim()
+    const q = searchParams.get("q")?.trim()
     const category = searchParams.get("category")?.trim()
+    const inStock = searchParams.get("inStock")?.trim().toLowerCase()
+    const sort = searchParams.get("sort")?.trim()
 
     if (search) {
       params.set("search", search)
     }
+    if (q) {
+      params.set("q", q)
+    }
     if (category) {
       params.set("category", category)
     }
+    if (inStock === "true" || inStock === "false") {
+      params.set("inStock", inStock)
+    }
+    if (sort) {
+      params.set("sort", sort)
+    }
+
+    // Keep loading skeletons visible long enough to feel intentional in demos.
+    params.set("simulateDelayMs", "420")
 
     const response = await apiFetch(`/catalog?${params.toString()}`)
     const gatewayPayload = (await response.json()) as GatewayResponse<unknown>
