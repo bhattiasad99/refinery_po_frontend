@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { handleGatewayUnavailableLogout } from "@/lib/client-session"
 
 type CatalogApiItem = {
   id: string
@@ -98,6 +99,9 @@ export default function CatalogPageComponent() {
         })
 
         const payload = (await response.json()) as CatalogListResponse | { message?: string }
+        if (handleGatewayUnavailableLogout(response.status, payload)) {
+          return
+        }
         if (!response.ok) {
           const errorPayload = payload as { message?: string }
           setErrorMessage(errorPayload.message ?? "Failed to load catalog")

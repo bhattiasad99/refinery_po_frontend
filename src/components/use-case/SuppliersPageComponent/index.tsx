@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { handleGatewayUnavailableLogout } from "@/lib/client-session"
 
 type SupplierCatalogItem = {
   id: string
@@ -105,6 +106,9 @@ export default function SuppliersPageComponent() {
         })
 
         const payload = (await response.json()) as SuppliersListResponse | { message?: string }
+        if (handleGatewayUnavailableLogout(response.status, payload)) {
+          return
+        }
         if (!response.ok) {
           const errorPayload = payload as { message?: string }
           setErrorMessage(errorPayload.message ?? "Failed to load suppliers")
@@ -123,6 +127,9 @@ export default function SuppliersPageComponent() {
         setErrorMessage("Failed to load suppliers")
         setSuppliers([])
       } finally {
+        if (signal?.aborted) {
+          return
+        }
         setIsLoading(false)
       }
     },
@@ -382,9 +389,13 @@ export default function SuppliersPageComponent() {
           </div>
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <p className="text-muted-foreground text-sm">
-              Showing page {page} of {totalPages} ({total} total suppliers)
-            </p>
+            {isInitialLoad ? (
+              <Skeleton className="h-4 w-72" />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Showing page {page} of {totalPages} ({total} total suppliers)
+              </p>
+            )}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <Label htmlFor="supplier-rows-per-page" className="text-sm">

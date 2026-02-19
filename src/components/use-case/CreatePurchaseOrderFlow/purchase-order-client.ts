@@ -9,6 +9,7 @@ import {
   type StepThreeData,
   type StepTwoData,
 } from "./draft-api"
+import { handleGatewayUnavailableLogout } from "@/lib/client-session"
 
 type PurchaseOrderLineItemApi = {
   id: string
@@ -102,6 +103,10 @@ async function parseResponse<T>(response: Response, fallbackMessage: string): Pr
     body = await response.json()
   } catch {
     body = null
+  }
+
+  if (handleGatewayUnavailableLogout(response.status, body)) {
+    throw new Error("Session ended because API gateway is unavailable.")
   }
 
   if (!response.ok) {

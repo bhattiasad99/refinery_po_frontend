@@ -1,380 +1,1065 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
-import { ArrowLeft, CircleCheckBig, CircleDashed, Plus, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { FocusEvent, useMemo, useState } from "react"
+import { ArrowLeft } from "lucide-react"
+import { toast } from "sonner"
 
+import ControlledModal from "@/components/common/ControlledModal"
+import SearchableDropdown, {
+  type SearchableDropdownOption,
+} from "@/components/common/SearchableDropdown"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MOCK_PURCHASE_ORDERS } from "@/components/use-case/SinglePurchaseOrderPageComponent/mock-data"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { ItemSelectionModal } from "@/components/use-case/CreatePurchaseOrderFlow/item-selection-modal"
+import { StepTwoItemsTable } from "@/components/use-case/CreatePurchaseOrderFlow/step-two-items-table"
+import { useCreatePurchaseOrderReferenceData } from "@/components/use-case/CreatePurchaseOrderFlow/reference-data-context"
+import {
+  PAYMENT_TERM_OPTIONS,
+  type PaymentMilestone,
+  type PaymentTermOption,
+  type PurchaseOrderLineItem,
+  type StepOneData,
+  type StepThreeData,
+  type StepTwoData,
+} from "@/components/use-case/CreatePurchaseOrderFlow/draft-api"
 
 type EditPurchaseOrderPageComponentProps = {
   id: string
 }
 
-type PurchaseOrder = (typeof MOCK_PURCHASE_ORDERS)[number]
-type PurchaseOrderLine = PurchaseOrder["purchase_order_details"][number]
+type EditablePurchaseOrder = {
+  id: string
+  status: "draft" | "submitted" | "approved" | "rejected" | "fulfilled"
+  step1: StepOneData
+  step2: StepTwoData
+  step3: StepThreeData
+}
+
+type PurchaseOrderChanges = {
+  step1?: Partial<StepOneData>
+  step2?: {
+    supplierName?: string
+    items?: PurchaseOrderLineItem[]
+  }
+  step3?: {
+    paymentTerm?: PaymentTermOption
+    taxIncluded?: boolean
+    advancePercentage?: number | null
+    balanceDueInDays?: number | null
+    customTerms?: string
+    milestones?: PaymentMilestone[]
+  }
+}
+
+const budgetCodeOptions: SearchableDropdownOption[] = [
+  { label: "CC-1234", value: "CC-1234" },
+  { label: "CC-2314", value: "CC-2314" },
+  { label: "CC-4420", value: "CC-4420" },
+  { label: "CC-9901", value: "CC-9901" },
+  { label: "CC-7603", value: "CC-7603" },
+]
+
+const DEFAULT_PAYMENT_TERM =
+  PAYMENT_TERM_OPTIONS.find((option) => option.id === "NET_30") ?? PAYMENT_TERM_OPTIONS[0]
+
+const MOCK_EDIT_PURCHASE_ORDERS: EditablePurchaseOrder[] = [
+  {
+    id: "1",
+    status: "draft",
+    step1: {
+      requestedByDepartment: "Procurement Dept",
+      requestedByUser: "Ayesha Khan",
+      budgetCode: "CC-1234",
+      needByDate: "2026-02-28",
+    },
+    step2: {
+      supplierName: "Alpha Industrial Supplies",
+      items: [
+        {
+          id: "PO1-001",
+          catalogItemId: "CAT-111",
+          item: "Safety Gloves (Box)",
+          supplier: "Alpha Industrial Supplies",
+          category: "Safety",
+          description: "Industrial grade cut-resistant gloves",
+          quantity: 10,
+          unitPrice: 12.5,
+        },
+        {
+          id: "PO1-002",
+          catalogItemId: "CAT-112",
+          item: "Protective Goggles",
+          supplier: "Alpha Industrial Supplies",
+          category: "Safety",
+          description: "Anti-fog polycarbonate safety goggles",
+          quantity: 15,
+          unitPrice: 8,
+        },
+      ],
+    },
+    step3: {
+      paymentTerm: DEFAULT_PAYMENT_TERM,
+      taxIncluded: true,
+      advancePercentage: null,
+      balanceDueInDays: null,
+      customTerms: "",
+      milestones: [],
+    },
+  },
+  {
+    id: "2",
+    status: "submitted",
+    step1: {
+      requestedByDepartment: "Maintenance Dept",
+      requestedByUser: "Bilal Ahmed",
+      budgetCode: "CC-2314",
+      needByDate: "2026-03-05",
+    },
+    step2: {
+      supplierName: "Pak Lubricants Co.",
+      items: [
+        {
+          id: "PO2-001",
+          catalogItemId: "CAT-211",
+          item: "Hydraulic Oil (20L)",
+          supplier: "Pak Lubricants Co.",
+          category: "Lubricants",
+          description: "ISO VG 46 hydraulic oil",
+          quantity: 6,
+          unitPrice: 95,
+        },
+        {
+          id: "PO2-002",
+          catalogItemId: "CAT-212",
+          item: "Grease Cartridge",
+          supplier: "Pak Lubricants Co.",
+          category: "Lubricants",
+          description: "Multi-purpose lithium grease",
+          quantity: 40,
+          unitPrice: 4.25,
+        },
+      ],
+    },
+    step3: {
+      paymentTerm: PAYMENT_TERM_OPTIONS.find((option) => option.id === "MILESTONE") ?? DEFAULT_PAYMENT_TERM,
+      taxIncluded: false,
+      advancePercentage: null,
+      balanceDueInDays: null,
+      customTerms: "",
+      milestones: [
+        { id: "M-1", label: "Delivery Completed", percentage: 60, dueInDays: 0 },
+        { id: "M-2", label: "Inspection Sign-off", percentage: 40, dueInDays: 15 },
+      ],
+    },
+  },
+]
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
+  minimumFractionDigits: 2,
 })
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
-  timeStyle: "short",
 })
 
-export default function EditPurchaseOrderPageComponent({
-  id,
-}: EditPurchaseOrderPageComponentProps) {
-  const purchaseOrder = useMemo(
-    () => MOCK_PURCHASE_ORDERS.find((order) => String(order.id) === id) ?? MOCK_PURCHASE_ORDERS[0],
+function cloneValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+function isEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
+function sanitizeChanges(changes: PurchaseOrderChanges): PurchaseOrderChanges {
+  const next: PurchaseOrderChanges = {}
+  if (changes.step1 && Object.keys(changes.step1).length > 0) next.step1 = changes.step1
+  if (changes.step2 && Object.keys(changes.step2).length > 0) next.step2 = changes.step2
+  if (changes.step3 && Object.keys(changes.step3).length > 0) next.step3 = changes.step3
+  return next
+}
+
+function applyChanges(base: EditablePurchaseOrder, changes: PurchaseOrderChanges): EditablePurchaseOrder {
+  return {
+    ...base,
+    step1: { ...base.step1, ...(changes.step1 ?? {}) },
+    step2: {
+      ...base.step2,
+      ...(changes.step2 ?? {}),
+      items: changes.step2?.items ?? base.step2.items,
+    },
+    step3: {
+      ...base.step3,
+      ...(changes.step3 ?? {}),
+      paymentTerm: changes.step3?.paymentTerm ?? base.step3.paymentTerm,
+      milestones: changes.step3?.milestones ?? base.step3.milestones,
+    },
+  }
+}
+
+function buildStepOneDiff(base: StepOneData, draft: StepOneData): Partial<StepOneData> {
+  const diff: Partial<StepOneData> = {}
+  if (base.requestedByDepartment !== draft.requestedByDepartment) diff.requestedByDepartment = draft.requestedByDepartment
+  if (base.requestedByUser !== draft.requestedByUser) diff.requestedByUser = draft.requestedByUser
+  if (base.budgetCode !== draft.budgetCode) diff.budgetCode = draft.budgetCode
+  if ((base.needByDate ?? "") !== (draft.needByDate ?? "")) diff.needByDate = draft.needByDate
+  return diff
+}
+
+function buildStepTwoDiff(base: StepTwoData, draft: StepTwoData): PurchaseOrderChanges["step2"] {
+  const diff: NonNullable<PurchaseOrderChanges["step2"]> = {}
+  if (base.supplierName !== draft.supplierName) diff.supplierName = draft.supplierName
+  if (!isEqual(base.items, draft.items)) diff.items = draft.items
+  return Object.keys(diff).length > 0 ? diff : undefined
+}
+
+function buildStepThreeDiff(base: StepThreeData, draft: StepThreeData): PurchaseOrderChanges["step3"] {
+  const diff: NonNullable<PurchaseOrderChanges["step3"]> = {}
+  if (!isEqual(base.paymentTerm, draft.paymentTerm)) diff.paymentTerm = draft.paymentTerm
+  if (base.taxIncluded !== draft.taxIncluded) diff.taxIncluded = draft.taxIncluded
+  if (base.advancePercentage !== draft.advancePercentage) diff.advancePercentage = draft.advancePercentage
+  if (base.balanceDueInDays !== draft.balanceDueInDays) diff.balanceDueInDays = draft.balanceDueInDays
+  if (base.customTerms !== draft.customTerms) diff.customTerms = draft.customTerms
+  if (!isEqual(base.milestones, draft.milestones)) diff.milestones = draft.milestones
+  return Object.keys(diff).length > 0 ? diff : undefined
+}
+
+const createMilestone = (index: number): PaymentMilestone => ({
+  id: crypto.randomUUID(),
+  label: `Milestone ${index + 1}`,
+  percentage: 0,
+  dueInDays: 0,
+})
+
+const selectAllOnFocus = (event: FocusEvent<HTMLInputElement>) => {
+  event.currentTarget.select()
+}
+
+export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrderPageComponentProps) {
+  const router = useRouter()
+  const referenceData = useCreatePurchaseOrderReferenceData()
+  const initialPurchaseOrder = useMemo(
+    () => cloneValue(MOCK_EDIT_PURCHASE_ORDERS.find((order) => order.id === id) ?? MOCK_EDIT_PURCHASE_ORDERS[0]),
     [id]
   )
 
-  const [supplierName, setSupplierName] = useState(purchaseOrder?.supplier_name ?? "")
-  const [requestedBy, setRequestedBy] = useState(purchaseOrder?.requested_by ?? "")
-  const [notes, setNotes] = useState("")
-  const [lines, setLines] = useState<PurchaseOrderLine[]>(
-    purchaseOrder?.purchase_order_details ?? []
+  const [baseOrder, setBaseOrder] = useState<EditablePurchaseOrder>(initialPurchaseOrder)
+  const [pendingChanges, setPendingChanges] = useState<PurchaseOrderChanges>({})
+
+  const [isStepOneModalOpen, setIsStepOneModalOpen] = useState(false)
+  const [isStepTwoModalOpen, setIsStepTwoModalOpen] = useState(false)
+  const [isStepThreeModalOpen, setIsStepThreeModalOpen] = useState(false)
+
+  const [stepOneDraft, setStepOneDraft] = useState<StepOneData>(baseOrder.step1)
+  const [stepTwoDraft, setStepTwoDraft] = useState<StepTwoData>(baseOrder.step2)
+  const [stepThreeDraft, setStepThreeDraft] = useState<StepThreeData>(baseOrder.step3)
+
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<PurchaseOrderLineItem | null>(null)
+
+  const displayOrder = useMemo(() => applyChanges(baseOrder, pendingChanges), [baseOrder, pendingChanges])
+  const hasPendingChanges = useMemo(() => Object.keys(sanitizeChanges(pendingChanges)).length > 0, [pendingChanges])
+  const itemSubtotal = useMemo(
+    () => displayOrder.step2.items.reduce((runningTotal, item) => runningTotal + item.quantity * item.unitPrice, 0),
+    [displayOrder.step2.items]
   )
-
-  const lineTotals = useMemo(
-    () =>
-      lines.map((line) => ({
-        ...line,
-        total_cost: Number((line.quantity * line.rate).toFixed(2)),
-      })),
-    [lines]
+  const stepThreeMilestoneTotal = useMemo(
+    () => stepThreeDraft.milestones.reduce((runningTotal, milestone) => runningTotal + milestone.percentage, 0),
+    [stepThreeDraft.milestones]
   )
-
-  const grandTotal = useMemo(
-    () => lineTotals.reduce((acc, line) => acc + line.total_cost, 0),
-    [lineTotals]
-  )
-
-  const initialSnapshot = useMemo(
-    () =>
-      JSON.stringify({
-        supplierName: purchaseOrder?.supplier_name ?? "",
-        requestedBy: purchaseOrder?.requested_by ?? "",
-        notes: "",
-        lines: purchaseOrder?.purchase_order_details ?? [],
-      }),
-    [purchaseOrder]
-  )
-
-  const currentSnapshot = useMemo(
-    () =>
-      JSON.stringify({
-        supplierName,
-        requestedBy,
-        notes,
-        lines,
-      }),
-    [supplierName, requestedBy, notes, lines]
-  )
-
-  const hasUnsavedChanges = initialSnapshot !== currentSnapshot
-  const validLineItems = lines.length > 0 && lines.every((line) => line.item_name.trim().length > 0)
-  const validQuantities = lines.every((line) => line.quantity > 0)
-  const validRates = lines.every((line) => line.rate > 0)
-  const canSubmit =
-    supplierName.trim().length > 0 &&
-    requestedBy.trim().length > 0 &&
-    validLineItems &&
-    validQuantities &&
-    validRates
-
-  const updateLine = <K extends keyof PurchaseOrderLine>(
-    index: number,
-    key: K,
-    value: PurchaseOrderLine[K]
-  ) => {
-    setLines((previousLines) =>
-      previousLines.map((line, currentIndex) =>
-        currentIndex === index ? { ...line, [key]: value } : line
+  const stepThreeValidationMessage = useMemo(() => {
+    const paymentTermType = stepThreeDraft.paymentTerm.id
+    if (paymentTermType === "ADVANCE") {
+      if (stepThreeDraft.advancePercentage === null) return "Advance percentage is required."
+      if (stepThreeDraft.advancePercentage <= 0 || stepThreeDraft.advancePercentage >= 100) {
+        return "Advance percentage must be between 1 and 99."
+      }
+      if (stepThreeDraft.balanceDueInDays === null || stepThreeDraft.balanceDueInDays < 0) {
+        return "Balance due days must be 0 or greater."
+      }
+    }
+    if (paymentTermType === "MILESTONE") {
+      if (stepThreeDraft.milestones.length === 0) return "Add at least one milestone."
+      const hasInvalidMilestone = stepThreeDraft.milestones.some(
+        (milestone) => milestone.label.trim().length === 0 || milestone.percentage <= 0 || milestone.dueInDays < 0
       )
+      if (hasInvalidMilestone) return "All milestones must have valid values."
+      if (stepThreeMilestoneTotal !== 100) return "Milestone percentages must total 100%."
+    }
+    if (paymentTermType === "CUSTOM" && stepThreeDraft.customTerms.trim().length === 0) {
+      return "Custom terms are required."
+    }
+    return null
+  }, [stepThreeDraft, stepThreeMilestoneTotal])
+
+  const openStepOneModal = () => {
+    setStepOneDraft(displayOrder.step1)
+    setIsStepOneModalOpen(true)
+  }
+
+  const openStepTwoModal = () => {
+    setStepTwoDraft(displayOrder.step2)
+    setEditingItem(null)
+    setIsStepTwoModalOpen(true)
+  }
+
+  const openStepThreeModal = () => {
+    setStepThreeDraft(displayOrder.step3)
+    setIsStepThreeModalOpen(true)
+  }
+
+  const onUpdateStepOne = () => {
+    const diff = buildStepOneDiff(baseOrder.step1, stepOneDraft)
+    setPendingChanges((previous) =>
+      sanitizeChanges({
+        ...previous,
+        step1: Object.keys(diff).length > 0 ? diff : undefined,
+      })
     )
+    setIsStepOneModalOpen(false)
   }
 
-  const addLine = () => {
-    if (!purchaseOrder) return
-
-    setLines((previousLines) => [
-      ...previousLines,
-      {
-        id: `PO${purchaseOrder.id}-${String(previousLines.length + 1).padStart(3, "0")}`,
-        item_name: "",
-        quantity: 1,
-        rate: 0,
-        total_cost: 0,
-      },
-    ])
-  }
-
-  const removeLine = (index: number) => {
-    setLines((previousLines) => previousLines.filter((_, currentIndex) => currentIndex !== index))
-  }
-
-  if (!purchaseOrder) {
-    return (
-      <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
-        <Link
-          href="/purchase-orders"
-          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
-        >
-          <ArrowLeft className="size-4" />
-          Back to purchase orders
-        </Link>
-        <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-lg font-semibold">Purchase order not found</p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              No purchase order exists for id {id}.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+  const onUpdateStepTwo = () => {
+    const diff = buildStepTwoDiff(baseOrder.step2, stepTwoDraft)
+    setPendingChanges((previous) =>
+      sanitizeChanges({
+        ...previous,
+        step2: diff,
+      })
     )
+    setIsStepTwoModalOpen(false)
+  }
+
+  const onUpdateStepThree = () => {
+    if (stepThreeValidationMessage) return
+    const diff = buildStepThreeDiff(baseOrder.step3, stepThreeDraft)
+    setPendingChanges((previous) =>
+      sanitizeChanges({
+        ...previous,
+        step3: diff,
+      })
+    )
+    setIsStepThreeModalOpen(false)
+  }
+
+  const onPageSaveChanges = () => {
+    if (!hasPendingChanges) {
+      toast.info("No changes to save")
+      return
+    }
+
+    try {
+      setBaseOrder((previous) => applyChanges(previous, pendingChanges))
+      setPendingChanges({})
+      toast.success("Changes saved", {
+        description: "Saved locally only. API save is not connected yet.",
+      })
+      router.push(`/purchase-orders/${displayOrder.id}`)
+    } catch {
+      toast.error("Failed to save changes")
+    }
+  }
+
+  const onPageCancelChanges = () => {
+    setPendingChanges({})
+    toast.info("Pending changes discarded")
+  }
+
+  const filteredCatalogItems = useMemo(() => {
+    const allCatalogItems = referenceData.catalogItems
+    if (!stepTwoDraft.supplierName) return allCatalogItems
+
+    const supplierItems = referenceData.catalogBySupplier[stepTwoDraft.supplierName] ?? []
+    return supplierItems.length > 0 ? supplierItems : allCatalogItems
+  }, [referenceData.catalogBySupplier, referenceData.catalogItems, stepTwoDraft.supplierName])
+
+  const departmentOptions: SearchableDropdownOption[] = useMemo(
+    () =>
+      referenceData.departments.map((department) => ({
+        label: department.name,
+        value: department.name,
+      })),
+    [referenceData.departments]
+  )
+
+  const userOptions: SearchableDropdownOption[] = useMemo(() => {
+    const selectedDepartment = stepOneDraft.requestedByDepartment
+    const usersInDepartment = selectedDepartment
+      ? referenceData.usersByDepartment[selectedDepartment] ?? []
+      : referenceData.users
+
+    const options = usersInDepartment.map((user) => ({
+      label: user.email,
+      value: user.email,
+    }))
+
+    const selectedUser = stepOneDraft.requestedByUser
+    if (!selectedUser) {
+      return options
+    }
+    if (options.some((option) => option.value === selectedUser)) {
+      return options
+    }
+
+    return [{ label: selectedUser, value: selectedUser }, ...options]
+  }, [
+    referenceData.users,
+    referenceData.usersByDepartment,
+    stepOneDraft.requestedByDepartment,
+    stepOneDraft.requestedByUser,
+  ])
+
+  const selectableCatalogItems = useMemo(
+    () =>
+      filteredCatalogItems.filter((catalogItem) => {
+        if (editingItem?.catalogItemId === catalogItem.id) return true
+        return !stepTwoDraft.items.some((lineItem) => lineItem.catalogItemId === catalogItem.id)
+      }),
+    [editingItem?.catalogItemId, filteredCatalogItems, stepTwoDraft.items]
+  )
+
+  const onSaveItem = (lineItem: PurchaseOrderLineItem) => {
+    setStepTwoDraft((previous) => {
+      if (previous.supplierName && previous.supplierName !== lineItem.supplier) return previous
+      const inferredSupplierName = previous.supplierName || lineItem.supplier
+      const existingItemIndex = previous.items.findIndex((existingItem) => existingItem.id === lineItem.id)
+      if (existingItemIndex >= 0) {
+        const updatedItems = [...previous.items]
+        updatedItems[existingItemIndex] = lineItem
+        return {
+          supplierName: inferredSupplierName,
+          items: updatedItems,
+        }
+      }
+      return {
+        supplierName: inferredSupplierName,
+        items: [...previous.items, lineItem],
+      }
+    })
+  }
+
+  const onDeleteItem = (lineItemId: string) => {
+    setStepTwoDraft((previous) => {
+      const updatedItems = previous.items.filter((lineItem) => lineItem.id !== lineItemId)
+      return {
+        supplierName: updatedItems.length > 0 ? previous.supplierName : "",
+        items: updatedItems,
+      }
+    })
+  }
+
+  const onEditItem = (lineItem: PurchaseOrderLineItem) => {
+    setEditingItem(lineItem)
+    setIsItemModalOpen(true)
+  }
+
+  const onAddMilestone = () => {
+    setStepThreeDraft((previous) => ({
+      ...previous,
+      milestones: [...previous.milestones, createMilestone(previous.milestones.length)],
+    }))
+  }
+
+  const onRemoveMilestone = (milestoneId: string) => {
+    setStepThreeDraft((previous) => ({
+      ...previous,
+      milestones: previous.milestones.filter((milestone) => milestone.id !== milestoneId),
+    }))
+  }
+
+  const onUpdateMilestone = (
+    milestoneId: string,
+    key: "label" | "percentage" | "dueInDays",
+    value: string
+  ) => {
+    setStepThreeDraft((previous) => ({
+      ...previous,
+      milestones: previous.milestones.map((milestone) => {
+        if (milestone.id !== milestoneId) return milestone
+        if (key === "label") return { ...milestone, label: value }
+        if (key === "percentage") return { ...milestone, percentage: Number(value) }
+        return { ...milestone, dueInDays: Number(value) }
+      }),
+    }))
   }
 
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
       <Link
-        href={`/purchase-orders/${id}`}
+        href="/purchase-orders"
         className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
       >
         <ArrowLeft className="size-4" />
-        Back to purchase order
+        Back to purchase orders
       </Link>
 
       <Card className="overflow-hidden border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
         <CardHeader className="gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{purchaseOrder.id}</Badge>
+              <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{displayOrder.id}</Badge>
               <Badge variant="secondary" className="bg-white text-slate-900 hover:bg-white">
                 Edit Mode
               </Badge>
-              {hasUnsavedChanges && (
+              <Badge className="bg-white/15 text-white capitalize hover:bg-white/15">
+                {displayOrder.status}
+              </Badge>
+              {hasPendingChanges ? (
                 <Badge className="bg-amber-500 text-black hover:bg-amber-500">Unsaved Changes</Badge>
-              )}
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="secondary" className="bg-white/15 text-white hover:bg-white/25">
-                Save Draft
+              <Button
+                size="sm"
+                variant="secondary"
+                className="bg-white/15 text-white hover:bg-white/25"
+                disabled={!hasPendingChanges}
+                onClick={onPageSaveChanges}
+              >
+                Save Changes
               </Button>
               <Button
                 size="sm"
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
-                disabled={!canSubmit}
+                variant="outline"
+                className="border-white/30 bg-transparent text-white hover:bg-white/10"
+                disabled={!hasPendingChanges}
+                onClick={onPageCancelChanges}
               >
-                Submit
-              </Button>
-              <Button asChild size="sm" variant="outline" className="border-white/30 bg-transparent text-white hover:bg-white/10">
-                <Link href={`/purchase-orders/${id}`}>Cancel</Link>
+                Cancel
               </Button>
             </div>
           </div>
-          <CardTitle className="text-2xl leading-tight md:text-3xl">
-            Edit Purchase Order
-          </CardTitle>
+          <CardTitle className="text-2xl leading-tight md:text-3xl">Edit Purchase Order</CardTitle>
           <p className="text-sm text-slate-200">
-            Update supplier details, item quantities, and pricing before submitting.
+            This page is read-only. Use each section&apos;s Edit button to update local state.
           </p>
         </CardHeader>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Order Information</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="supplier-name">Supplier</Label>
-                <Input
-                  id="supplier-name"
-                  value={supplierName}
-                  onChange={(event) => setSupplierName(event.target.value)}
-                  placeholder="Enter supplier name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="requested-by">Requested By</Label>
-                <Input
-                  id="requested-by"
-                  value={requestedBy}
-                  onChange={(event) => setRequestedBy(event.target.value)}
-                  placeholder="Enter department or requester"
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="notes">Notes</Label>
-                <textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Optional notes for approvers"
-                  className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring/50 min-h-24 w-full rounded-md border px-3 py-2 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none"
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-xs">Created At</p>
-                <p className="text-sm font-medium">
-                  {dateTimeFormatter.format(new Date(purchaseOrder.created_at))}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-xs">Current Status</p>
-                <p className="text-sm font-medium capitalize">{purchaseOrder.status}</p>
-              </div>
-            </CardContent>
-          </Card>
+      {referenceData.errorMessage ? (
+        <p className="text-sm font-medium text-red-600">{referenceData.errorMessage}</p>
+      ) : null}
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle>Line Items</CardTitle>
-                <Button size="sm" variant="outline" onClick={addLine}>
-                  <Plus className="size-4" />
-                  Add Item
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="px-0">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead>
-                    <tr className="text-muted-foreground border-b text-left">
-                      <th className="px-6 py-3 font-medium">Item ID</th>
-                      <th className="px-6 py-3 font-medium">Item</th>
-                      <th className="px-6 py-3 font-medium text-right">Qty</th>
-                      <th className="px-6 py-3 font-medium text-right">Rate</th>
-                      <th className="px-6 py-3 font-medium text-right">Total</th>
-                      <th className="px-6 py-3 font-medium text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lineTotals.map((line, index) => (
-                      <tr key={line.id} className="border-b last:border-b-0">
-                        <td className="px-6 py-4 font-medium">{line.id}</td>
-                        <td className="px-6 py-4">
-                          <Input
-                            value={line.item_name}
-                            onChange={(event) => updateLine(index, "item_name", event.target.value)}
-                            placeholder="Item name"
-                          />
-                        </td>
-                        <td className="px-6 py-4">
-                          <Input
-                            type="number"
-                            min={1}
-                            value={line.quantity}
-                            onChange={(event) =>
-                              updateLine(index, "quantity", Number(event.target.value || 0))
-                            }
-                            className="text-right"
-                          />
-                        </td>
-                        <td className="px-6 py-4">
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={line.rate}
-                            onChange={(event) =>
-                              updateLine(index, "rate", Number(event.target.value || 0))
-                            }
-                            className="text-right"
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-right font-semibold">
-                          {currencyFormatter.format(line.total_cost)}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() => removeLine(index)}
-                            disabled={lines.length === 1}
-                          >
-                            <Trash2 className="size-4 text-rose-600" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td className="px-6 py-4" colSpan={3} />
-                      <td className="px-6 py-4 text-right text-sm font-semibold">Grand Total</td>
-                      <td className="px-6 py-4 text-right text-lg font-bold">
-                        {currencyFormatter.format(grandTotal)}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Basic Request Information</CardTitle>
+          <Button type="button" variant="outline" size="sm" onClick={openStepOneModal}>
+            Edit
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-1">
+            <p className="text-muted-foreground text-xs">Requested By (Department)</p>
+            <p className="text-sm font-medium">{displayOrder.step1.requestedByDepartment || "-"}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-muted-foreground text-xs">Requested By (User Name)</p>
+            <p className="text-sm font-medium">{displayOrder.step1.requestedByUser || "-"}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-muted-foreground text-xs">Budget Code</p>
+            <p className="text-sm font-medium">{displayOrder.step1.budgetCode || "-"}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-muted-foreground text-xs">Need By Date</p>
+            <p className="text-sm font-medium">
+              {displayOrder.step1.needByDate
+                ? dateFormatter.format(new Date(displayOrder.step1.needByDate))
+                : "-"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Items</CardTitle>
+          <Button type="button" variant="outline" size="sm" onClick={openStepTwoModal}>
+            Edit
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4 px-0">
+          <div className="px-6">
+            <p className="text-muted-foreground text-xs">Supplier Name</p>
+            <p className="text-sm font-medium">{displayOrder.step2.supplierName || "-"}</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px] text-sm">
+              <thead>
+                <tr className="text-muted-foreground border-b text-left">
+                  <th className="px-6 py-3 font-medium">Item ID</th>
+                  <th className="px-6 py-3 font-medium">Item Name</th>
+                  <th className="px-6 py-3 font-medium">Category</th>
+                  <th className="px-6 py-3 font-medium">Description</th>
+                  <th className="px-6 py-3 font-medium text-right">Qty</th>
+                  <th className="px-6 py-3 font-medium text-right">Unit Price</th>
+                  <th className="px-6 py-3 font-medium text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayOrder.step2.items.map((item) => {
+                  const lineTotal = item.quantity * item.unitPrice
+                  return (
+                    <tr key={item.id} className="border-b last:border-b-0">
+                      <td className="px-6 py-4 font-medium">{item.id}</td>
+                      <td className="px-6 py-4">{item.item}</td>
+                      <td className="px-6 py-4">{item.category}</td>
+                      <td className="px-6 py-4">{item.description}</td>
+                      <td className="px-6 py-4 text-right">{item.quantity}</td>
+                      <td className="px-6 py-4 text-right">{currencyFormatter.format(item.unitPrice)}</td>
+                      <td className="px-6 py-4 text-right font-semibold">
+                        {currencyFormatter.format(lineTotal)}
                       </td>
-                      <td className="px-6 py-4" />
                     </tr>
-                  </tfoot>
-                </table>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="px-6 py-4" colSpan={5} />
+                  <td className="px-6 py-4 text-right text-sm font-semibold">Subtotal</td>
+                  <td className="px-6 py-4 text-right text-lg font-bold">
+                    {currencyFormatter.format(itemSubtotal)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Payment Terms</CardTitle>
+          <Button type="button" variant="outline" size="sm" onClick={openStepThreeModal}>
+            Edit
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <p className="text-muted-foreground text-xs">Payment Term Type</p>
+              <p className="text-sm font-medium">{displayOrder.step3.paymentTerm.label}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-muted-foreground text-xs">Tax Included</p>
+              <p className="text-sm font-medium">{displayOrder.step3.taxIncluded ? "Yes" : "No"}</p>
+            </div>
+          </div>
+
+          {displayOrder.step3.paymentTerm.id === "ADVANCE" ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-muted-foreground text-xs">Advance Percentage</p>
+                <p className="text-sm font-medium">{displayOrder.step3.advancePercentage ?? 0}%</p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="space-y-1">
+                <p className="text-muted-foreground text-xs">Balance Due In (Days)</p>
+                <p className="text-sm font-medium">{displayOrder.step3.balanceDueInDays ?? 0}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {displayOrder.step3.paymentTerm.id === "MILESTONE" ? (
+            <div className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm font-semibold">Milestones</p>
+              {displayOrder.step3.milestones.map((milestone) => (
+                <div key={milestone.id} className="grid gap-2 rounded-md border p-3 md:grid-cols-3">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Label</p>
+                    <p className="text-sm font-medium">{milestone.label}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Percentage</p>
+                    <p className="text-sm font-medium">{milestone.percentage}%</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Due In</p>
+                    <p className="text-sm font-medium">{milestone.dueInDays} days</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {displayOrder.step3.paymentTerm.id === "CUSTOM" ? (
+            <div className="space-y-1">
+              <p className="text-muted-foreground text-xs">Custom Terms</p>
+              <p className="text-sm font-medium">{displayOrder.step3.customTerms || "-"}</p>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-end gap-3">
+        <Button variant="outline" disabled={!hasPendingChanges} onClick={onPageCancelChanges}>
+          Cancel
+        </Button>
+        <Button disabled={!hasPendingChanges} onClick={onPageSaveChanges}>
+          Save Changes
+        </Button>
+      </div>
+
+      <ControlledModal
+        open={isStepOneModalOpen}
+        onOpenChange={setIsStepOneModalOpen}
+        title="Basic Request Information"
+        description="Update the requester and budget details for this purchase order."
+      >
+        <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-requested-by-department">Requested By (Department)</Label>
+              <SearchableDropdown
+                id="edit-requested-by-department"
+                value={stepOneDraft.requestedByDepartment}
+                onChange={(value) => setStepOneDraft((previous) => ({ ...previous, requestedByDepartment: value }))}
+                options={departmentOptions}
+                placeholder="Select department"
+                searchPlaceholder="Search department..."
+                disabled={departmentOptions.length === 0}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-requested-by-user">Requested By (User Name)</Label>
+              <SearchableDropdown
+                id="edit-requested-by-user"
+                value={stepOneDraft.requestedByUser}
+                onChange={(value) => setStepOneDraft((previous) => ({ ...previous, requestedByUser: value }))}
+                options={userOptions}
+                placeholder="Select user"
+                searchPlaceholder="Search user..."
+                disabled={userOptions.length === 0}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-budget-code">Budget Code</Label>
+              <SearchableDropdown
+                id="edit-budget-code"
+                value={stepOneDraft.budgetCode}
+                onChange={(value) => setStepOneDraft((previous) => ({ ...previous, budgetCode: value }))}
+                options={budgetCodeOptions}
+                placeholder="Select budget code"
+                searchPlaceholder="Search budget code..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-need-by-date">Need By Date (Optional)</Label>
+              <Input
+                id="edit-need-by-date"
+                type="date"
+                value={stepOneDraft.needByDate ?? ""}
+                onChange={(event) => setStepOneDraft((previous) => ({ ...previous, needByDate: event.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsStepOneModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={onUpdateStepOne}>Update</Button>
+          </div>
         </div>
+      </ControlledModal>
 
-        <div className="space-y-6">
-          <Card className="xl:sticky xl:top-4">
-            <CardHeader>
-              <CardTitle>Validation & Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">{currencyFormatter.format(grandTotal)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Fees/Tax</span>
-                  <span className="font-medium">{currencyFormatter.format(0)}</span>
-                </div>
-                <div className="flex items-center justify-between text-base font-semibold">
-                  <span>Grand Total</span>
-                  <span>{currencyFormatter.format(grandTotal)}</span>
+      <ControlledModal
+        open={isStepTwoModalOpen}
+        onOpenChange={setIsStepTwoModalOpen}
+        title="Build Purchase Items"
+        description="Set supplier name and prepare receipt-style purchase items."
+        className="w-[min(94vw,1000px)]"
+      >
+        <div className="space-y-5">
+          <div className="rounded-lg border bg-slate-50 p-4">
+            <p className="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+              Supplier Name
+            </p>
+            <p className="mt-1 text-base font-semibold text-slate-900">
+              {stepTwoDraft.supplierName || "No Supplier Added, please add items"}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-slate-700">Items</p>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={referenceData.catalogItems.length === 0}
+              onClick={() => {
+                setEditingItem(null)
+                setIsItemModalOpen(true)
+              }}
+            >
+              Add Item
+            </Button>
+          </div>
+
+          {stepTwoDraft.items.length > 0 ? (
+            <StepTwoItemsTable items={stepTwoDraft.items} onEditItem={onEditItem} onDeleteItem={onDeleteItem} />
+          ) : (
+            <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
+              Add items to populate table
+            </p>
+          )}
+
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsStepTwoModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={onUpdateStepTwo}>Update</Button>
+          </div>
+        </div>
+      </ControlledModal>
+
+      <ControlledModal
+        open={isStepThreeModalOpen}
+        onOpenChange={setIsStepThreeModalOpen}
+        title="Payment Terms"
+        description="Define how this purchase order will be settled."
+        className="w-[min(94vw,900px)]"
+      >
+        <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-4 md:col-span-2">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-payment-term-type">Payment Term Type</Label>
+                  <Select
+                    value={stepThreeDraft.paymentTerm.id}
+                    onValueChange={(value) =>
+                      setStepThreeDraft((previous) => ({
+                        ...previous,
+                        paymentTerm:
+                          PAYMENT_TERM_OPTIONS.find((option) => option.id === value) ??
+                          PAYMENT_TERM_OPTIONS[0],
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="edit-payment-term-type" className="w-full">
+                      <SelectValue placeholder="Select payment term" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_TERM_OPTIONS.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-xs">
+                    {stepThreeDraft.paymentTerm.description}
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <p className="text-sm font-semibold">Checklist</p>
-                <div className="space-y-2">
-                  {[
-                    { label: "Supplier selected", valid: supplierName.trim().length > 0 },
-                    { label: "Requester set", valid: requestedBy.trim().length > 0 },
-                    { label: "Line items are filled", valid: validLineItems },
-                    { label: "Quantities are valid", valid: validQuantities },
-                    { label: "Rates are valid", valid: validRates },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center gap-2 text-sm">
-                      {item.valid ? (
-                        <CircleCheckBig className="size-4 text-emerald-600" />
-                      ) : (
-                        <CircleDashed className="text-muted-foreground size-4" />
-                      )}
-                      <span className={item.valid ? "text-foreground" : "text-muted-foreground"}>
-                        {item.label}
-                      </span>
+              <div className="space-y-2">
+                <Label htmlFor="edit-tax-included">Tax Included</Label>
+                <Select
+                  value={stepThreeDraft.taxIncluded ? "YES" : "NO"}
+                  onValueChange={(value) =>
+                    setStepThreeDraft((previous) => ({
+                      ...previous,
+                      taxIncluded: value === "YES",
+                    }))
+                  }
+                >
+                  <SelectTrigger id="edit-tax-included" className="w-full md:w-[220px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="YES">Yes</SelectItem>
+                    <SelectItem value="NO">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {stepThreeDraft.paymentTerm.id === "ADVANCE" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-advance-percentage">Advance Percentage</Label>
+                    <Input
+                      id="edit-advance-percentage"
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={stepThreeDraft.advancePercentage ?? ""}
+                      onFocus={selectAllOnFocus}
+                      onChange={(event) =>
+                        setStepThreeDraft((previous) => ({
+                          ...previous,
+                          advancePercentage:
+                            event.target.value === "" ? null : Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-balance-due-days">Balance Due In (Days)</Label>
+                    <Input
+                      id="edit-balance-due-days"
+                      type="number"
+                      min={0}
+                      value={stepThreeDraft.balanceDueInDays ?? ""}
+                      onFocus={selectAllOnFocus}
+                      onChange={(event) =>
+                        setStepThreeDraft((previous) => ({
+                          ...previous,
+                          balanceDueInDays:
+                            event.target.value === "" ? null : Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {stepThreeDraft.paymentTerm.id === "MILESTONE" ? (
+                <div className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">Milestones</p>
+                    <Button type="button" variant="outline" onClick={onAddMilestone}>
+                      Add Milestone
+                    </Button>
+                  </div>
+                  {stepThreeDraft.milestones.map((milestone) => (
+                    <div key={milestone.id} className="grid gap-2 rounded-md border p-3 md:grid-cols-4">
+                      <div className="space-y-1">
+                        <Label htmlFor={`edit-milestone-label-${milestone.id}`}>Milestone Label</Label>
+                        <Input
+                          id={`edit-milestone-label-${milestone.id}`}
+                          value={milestone.label}
+                          onChange={(event) =>
+                            onUpdateMilestone(milestone.id, "label", event.target.value)
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`edit-milestone-percentage-${milestone.id}`}>
+                          Percentage (%)
+                        </Label>
+                        <Input
+                          id={`edit-milestone-percentage-${milestone.id}`}
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={milestone.percentage}
+                          onFocus={selectAllOnFocus}
+                          onChange={(event) =>
+                            onUpdateMilestone(milestone.id, "percentage", event.target.value)
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`edit-milestone-days-${milestone.id}`}>Due In (Days)</Label>
+                        <Input
+                          id={`edit-milestone-days-${milestone.id}`}
+                          type="number"
+                          min={0}
+                          value={milestone.dueInDays}
+                          onFocus={selectAllOnFocus}
+                          onChange={(event) =>
+                            onUpdateMilestone(milestone.id, "dueInDays", event.target.value)
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`edit-milestone-remove-${milestone.id}`}>Actions</Label>
+                        <Button
+                          id={`edit-milestone-remove-${milestone.id}`}
+                          type="button"
+                          variant="outline"
+                          onClick={() => onRemoveMilestone(milestone.id)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
                     </div>
                   ))}
+                  <p className="text-muted-foreground text-sm">
+                    Milestone Total: {stepThreeMilestoneTotal}%
+                  </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              ) : null}
+
+              {stepThreeDraft.paymentTerm.id === "CUSTOM" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-custom-terms">Custom Terms</Label>
+                  <textarea
+                    id="edit-custom-terms"
+                    rows={4}
+                    value={stepThreeDraft.customTerms}
+                    onChange={(event) =>
+                      setStepThreeDraft((previous) => ({
+                        ...previous,
+                        customTerms: event.target.value,
+                      }))
+                    }
+                    className="border-input w-full rounded-md border p-3 text-sm"
+                  />
+                </div>
+              ) : null}
+
+              {stepThreeValidationMessage ? (
+                <p className="text-sm font-medium text-red-600">{stepThreeValidationMessage}</p>
+              ) : null}
+            </div>
+
+            <Card className="h-fit">
+              <CardContent className="space-y-2 p-4 text-sm">
+                <p className="font-semibold">Payment Summary</p>
+                <p>
+                  Item Subtotal:{" "}
+                  <span className="font-semibold">
+                    {currencyFormatter.format(
+                      stepTwoDraft.items.reduce(
+                        (runningTotal, item) => runningTotal + item.quantity * item.unitPrice,
+                        0
+                      )
+                    )}
+                  </span>
+                </p>
+                <p>Payment Type: {stepThreeDraft.paymentTerm.label}</p>
+                <p>Tax Included: {stepThreeDraft.taxIncluded ? "Yes" : "No"}</p>
+                {stepThreeDraft.paymentTerm.id === "MILESTONE" ? (
+                  <p>Milestone Total: {stepThreeMilestoneTotal}%</p>
+                ) : null}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsStepThreeModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={onUpdateStepThree} disabled={Boolean(stepThreeValidationMessage)}>
+              Update
+            </Button>
+          </div>
         </div>
-      </div>
+      </ControlledModal>
+
+      {isItemModalOpen ? (
+        <ItemSelectionModal
+          open={isItemModalOpen}
+          onOpenChange={setIsItemModalOpen}
+          catalogItems={selectableCatalogItems}
+          initialLineItem={editingItem}
+          onSave={onSaveItem}
+        />
+      ) : null}
     </div>
   )
 }

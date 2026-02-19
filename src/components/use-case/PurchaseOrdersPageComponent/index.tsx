@@ -7,6 +7,8 @@ import { PlusCircle, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import { handleGatewayUnavailableLogout } from "@/lib/client-session"
 
 import { KanbanColumnComponent } from "./kanban-column"
 import { KanbanBoardState, KanbanColumn, KanbanColumnId } from "./types"
@@ -96,13 +98,24 @@ function toNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
-async function loadBoardFromApi(): Promise<KanbanBoardState> {
-  const response = await fetch("/api/purchase-orders", { cache: "no-store" })
+async function loadBoardFromApi(signal?: AbortSignal): Promise<KanbanBoardState> {
+  const response = await fetch("/api/purchase-orders", { cache: "no-store", signal })
+  let payload: unknown = null
+  try {
+    payload = await response.json()
+  } catch {
+    payload = null
+  }
+
+  if (handleGatewayUnavailableLogout(response.status, payload)) {
+    throw new Error("Session ended because API gateway is unavailable.")
+  }
+
   if (!response.ok) {
     throw new Error("Failed to load purchase orders")
   }
 
-  const rows = (await response.json()) as PurchaseOrderListRow[]
+  const rows = payload as PurchaseOrderListRow[]
   const purchaseOrders: KanbanBoardState["purchaseOrders"] = {}
   const columnBuckets: Record<KanbanColumnId, string[]> = {
     draft: [],
@@ -149,26 +162,39 @@ async function loadBoardFromApi(): Promise<KanbanBoardState> {
 
 export default function PurchaseOrdersPageComponent() {
   const [board, setBoard] = useState<KanbanBoardState>(() => createEmptyBoard())
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [searchDraft, setSearchDraft] = useState("")
   const [search, setSearch] = useState("")
+  const isInitialLoad = isLoading && !hasLoadedOnce
 
   useEffect(() => {
-    let isMounted = true
+    const controller = new AbortController()
     const hydrateBoard = async () => {
+      setIsLoading(true)
       try {
-        const nextBoard = await loadBoardFromApi()
-        if (isMounted) {
+        const nextBoard = await loadBoardFromApi(controller.signal)
+        if (!controller.signal.aborted) {
           setBoard(nextBoard)
+          setHasLoadedOnce(true)
         }
-      } catch {
-        if (isMounted) {
+      } catch (error) {
+        if ((error as Error).name === "AbortError") {
+          return
+        }
+        if (!controller.signal.aborted) {
           setBoard(createEmptyBoard())
         }
+      } finally {
+        if (controller.signal.aborted) {
+          return
+        }
+        setIsLoading(false)
       }
     }
-    hydrateBoard()
+    void hydrateBoard()
     return () => {
-      isMounted = false
+      controller.abort()
     }
   }, [])
 
@@ -268,6 +294,7 @@ export default function PurchaseOrdersPageComponent() {
               className="h-10 pl-9"
               value={searchDraft}
               onChange={(event) => setSearchDraft(event.target.value)}
+              disabled={isInitialLoad}
             />
           </div>
           {/* <Button variant="outline" className="h-10 px-4">
@@ -291,14 +318,33 @@ export default function PurchaseOrdersPageComponent() {
         >
           <div className="h-full overflow-x-auto overflow-y-auto pb-2">
             <div className="flex min-h-full min-w-max gap-3">
-              {orderedColumns.map((column) => (
+              {isInitialLoad
+                ? COLUMN_ORDER.map((columnId) => {
+                  const column = board.columns[columnId]
+                  return (
+                    <div key={column.id} className="bg-muted/50 flex h-full min-h-[380px] w-[300px] shrink-0 flex-col rounded-2xl p-3">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-semibold">{column.title}</h2>
+                          <Skeleton className="h-5 w-8 rounded-lg" />
+                        </div>
+                      </div>
+                      <div className="flex flex-1 flex-col gap-3 rounded-xl">
+                        <Skeleton className="h-24 w-full rounded-xl" />
+                        <Skeleton className="h-24 w-full rounded-xl" />
+                        <Skeleton className="h-24 w-full rounded-xl" />
+                      </div>
+                    </div>
+                  )
+                })
+                : orderedColumns.map((column) => (
                 <KanbanColumnComponent
                   key={column.id}
                   column={column}
                   purchaseOrders={filteredColumnPurchaseOrderIds[column.id].map((purchaseOrderId) => board.purchaseOrders[purchaseOrderId])}
                   dragEnabled={KANBAN_DRAG_ENABLED}
                 />
-              ))}
+                ))}
             </div>
           </div>
         </DragDropContext>

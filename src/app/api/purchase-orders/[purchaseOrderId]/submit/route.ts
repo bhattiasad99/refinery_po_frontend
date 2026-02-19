@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { apiFetch } from "@/lib/api-fetch"
+import { handleApiRouteError } from "@/lib/api-route-error"
 
 type GatewayResponse<T> = {
   body?: T
@@ -33,7 +34,7 @@ export async function POST(_request: Request, context: RouteContext): Promise<Ne
     }
 
     return NextResponse.json(body, { status: response.status })
-  } catch {
-    return NextResponse.json({ message: "Failed to submit purchase order" }, { status: 500 })
+  } catch (error) {
+    return handleApiRouteError(error, "Failed to submit purchase order")
   }
 }

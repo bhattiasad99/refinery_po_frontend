@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
-import catalogItemsData from "./catalog_items.json"
 import { type PurchaseOrderLineItem, type StepTwoData } from "./draft-api"
 import { ItemSelectionModal } from "./item-selection-modal"
 import {
@@ -13,6 +12,7 @@ import {
   mapPurchaseOrderToStepTwo,
   updatePurchaseOrder,
 } from "./purchase-order-client"
+import { useCreatePurchaseOrderReferenceData } from "./reference-data-context"
 
 import { StepShell } from "./step-shell"
 import { StepTwoItemsTable } from "./step-two-items-table"
@@ -20,18 +20,6 @@ import { StepTwoItemsTable } from "./step-two-items-table"
 type CreatePurchaseOrderStepTwoProps = {
   draftId: string
 }
-
-type CatalogItem = {
-  id: string
-  name: string
-  category: string
-  supplier: string
-  description: string
-  priceUsd: number
-  inStock: boolean
-}
-
-const allCatalogItems = catalogItemsData as CatalogItem[]
 
 const emptyStepTwoData = (): StepTwoData => ({
   supplierName: "",
@@ -42,6 +30,7 @@ export default function CreatePurchaseOrderStepTwo({
   draftId,
 }: CreatePurchaseOrderStepTwoProps) {
   const router = useRouter()
+  const referenceData = useCreatePurchaseOrderReferenceData()
 
   const [values, setValues] = useState<StepTwoData>(emptyStepTwoData())
   const [isLoading, setIsLoading] = useState(false)
@@ -81,13 +70,12 @@ export default function CreatePurchaseOrderStepTwo({
 
   const hasItems = useMemo(() => values.items.length > 0, [values.items])
   const filteredCatalogItems = useMemo(() => {
+    const allCatalogItems = referenceData.catalogItems
     if (!values.supplierName) return allCatalogItems
 
-    const supplierItems = allCatalogItems.filter(
-      (catalogItem) => catalogItem.supplier === values.supplierName
-    )
+    const supplierItems = referenceData.catalogBySupplier[values.supplierName] ?? []
     return supplierItems.length > 0 ? supplierItems : allCatalogItems
-  }, [values.supplierName])
+  }, [referenceData.catalogBySupplier, referenceData.catalogItems, values.supplierName])
 
   const onBack = () => {
     router.push(`/purchase-orders/new?draftId=${encodeURIComponent(draftId)}`)
@@ -186,7 +174,12 @@ export default function CreatePurchaseOrderStepTwo({
 
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium text-slate-700">Items</p>
-          <Button type="button" variant="outline" onClick={onOpenAddItemModal}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onOpenAddItemModal}
+            disabled={referenceData.catalogItems.length === 0}
+          >
             Add Item
           </Button>
         </div>
@@ -213,6 +206,9 @@ export default function CreatePurchaseOrderStepTwo({
         </div>
 
         {errorMessage ? <p className="text-sm font-medium text-red-600">{errorMessage}</p> : null}
+        {referenceData.errorMessage ? (
+          <p className="text-sm font-medium text-red-600">{referenceData.errorMessage}</p>
+        ) : null}
       </div>
 
       {isItemModalOpen ? (

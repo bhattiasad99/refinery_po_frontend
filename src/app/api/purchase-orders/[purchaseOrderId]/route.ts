@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { apiFetch } from "@/lib/api-fetch"
+import { handleApiRouteError } from "@/lib/api-route-error"
 
 type GatewayResponse<T> = {
   body?: T
@@ -30,8 +31,8 @@ export async function GET(_request: NextRequest, context: RouteContext): Promise
     }
 
     return NextResponse.json(body, { status: response.status })
-  } catch {
-    return NextResponse.json({ message: "Failed to fetch purchase order" }, { status: 500 })
+  } catch (error) {
+    return handleApiRouteError(error, "Failed to fetch purchase order")
   }
 }
 
@@ -61,7 +62,7 @@ export async function PUT(request: NextRequest, context: RouteContext): Promise<
     }
 
     return NextResponse.json(body, { status: response.status })
-  } catch {
-    return NextResponse.json({ message: "Failed to update purchase order" }, { status: 500 })
+  } catch (error) {
+    return handleApiRouteError(error, "Failed to update purchase order")
   }
 }

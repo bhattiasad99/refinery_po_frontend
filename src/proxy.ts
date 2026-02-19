@@ -8,7 +8,6 @@ const PROTECTED_PREFIXES = [
   "/catalog",
   "/purchase-orders",
   "/suppliers",
-  "/settings",
 ]
 
 function isProtectedPath(pathname: string): boolean {

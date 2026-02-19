@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { apiFetch } from "@/lib/api-fetch"
+import { handleApiRouteError } from "@/lib/api-route-error"
 
 type GatewayResponse<T> = {
   body?: T
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     return NextResponse.json(body, { status: response.status })
-  } catch {
-    return NextResponse.json({ message: "Failed to fetch suppliers" }, { status: 500 })
+  } catch (error) {
+    return handleApiRouteError(error, "Failed to fetch suppliers")
   }
 }

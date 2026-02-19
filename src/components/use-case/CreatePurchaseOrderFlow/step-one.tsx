@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import SearchableDropdown, {
@@ -16,6 +16,7 @@ import {
   mapPurchaseOrderToStepOne,
   updatePurchaseOrder,
 } from "./purchase-order-client"
+import { useCreatePurchaseOrderReferenceData } from "./reference-data-context"
 
 import { StepShell } from "./step-shell"
 
@@ -28,6 +29,7 @@ export default function CreatePurchaseOrderStepOne({
 }: CreatePurchaseOrderStepOneProps) {
   const router = useRouter()
   const draftId = initialDraftId?.trim() || null
+  const referenceData = useCreatePurchaseOrderReferenceData()
 
   const [requestedByDepartment, setRequestedByDepartment] = useState("")
   const [requestedByUser, setRequestedByUser] = useState("")
@@ -74,23 +76,35 @@ export default function CreatePurchaseOrderStepOne({
     }
   }, [draftId])
 
-  const departmentOptions: SearchableDropdownOption[] = [
-    { label: "Procurement Dept", value: "procurement-dept" },
-    { label: "Maintenance Dept", value: "maintenance-dept" },
-    { label: "Electrical Team", value: "electrical-team" },
-    { label: "Warehouse", value: "warehouse" },
-    { label: "Finance Dept", value: "finance-dept" },
-    { label: "Operations", value: "operations" },
-  ]
+  const departmentOptions: SearchableDropdownOption[] = useMemo(
+    () =>
+      referenceData.departments.map((department) => ({
+        label: department.name,
+        value: department.name,
+      })),
+    [referenceData.departments]
+  )
 
-  const userOptions: SearchableDropdownOption[] = [
-    { label: "Ayesha Khan", value: "ayesha-khan" },
-    { label: "Bilal Ahmed", value: "bilal-ahmed" },
-    { label: "Hassan Raza", value: "hassan-raza" },
-    { label: "Sana Malik", value: "sana-malik" },
-    { label: "Manager Operations", value: "manager-operations" },
-    { label: "Finance Dept", value: "finance-dept" },
-  ]
+  const userOptions: SearchableDropdownOption[] = useMemo(() => {
+    const usersInDepartment = requestedByDepartment
+      ? referenceData.usersByDepartment[requestedByDepartment] ?? []
+      : referenceData.users
+
+    const options = usersInDepartment.map((user) => ({
+      label: user.email,
+      value: user.email,
+    }))
+
+    if (!requestedByUser) {
+      return options
+    }
+
+    if (options.some((option) => option.value === requestedByUser)) {
+      return options
+    }
+
+    return [{ label: requestedByUser, value: requestedByUser }, ...options]
+  }, [referenceData.users, referenceData.usersByDepartment, requestedByDepartment, requestedByUser])
 
   const budgetCodeOptions: SearchableDropdownOption[] = [
     { label: "CC-1234", value: "CC-1234" },
@@ -132,10 +146,14 @@ export default function CreatePurchaseOrderStepOne({
     }
   }
 
+  const hasReferenceData =
+    departmentOptions.length > 0 && userOptions.length > 0
+
   const isFormValid =
     requestedByDepartment.trim().length > 0 &&
     requestedByUser.trim().length > 0 &&
-    budgetCode.trim().length > 0
+    budgetCode.trim().length > 0 &&
+    hasReferenceData
 
   return (
     <StepShell
@@ -152,7 +170,7 @@ export default function CreatePurchaseOrderStepOne({
             options={departmentOptions}
             placeholder="Select department"
             searchPlaceholder="Search department..."
-            disabled={isLoadingDraft}
+            disabled={isLoadingDraft || departmentOptions.length === 0}
           />
         </div>
         <div className="space-y-2">
@@ -164,7 +182,7 @@ export default function CreatePurchaseOrderStepOne({
             options={userOptions}
             placeholder="Select user"
             searchPlaceholder="Search user..."
-            disabled={isLoadingDraft}
+            disabled={isLoadingDraft || userOptions.length === 0}
           />
         </div>
         <div className="space-y-2">
@@ -192,6 +210,9 @@ export default function CreatePurchaseOrderStepOne({
         </div>
       </div>
 
+      {referenceData.errorMessage ? (
+        <p className="mt-4 text-sm font-medium text-red-600">{referenceData.errorMessage}</p>
+      ) : null}
       {errorMessage ? <p className="mt-4 text-sm font-medium text-red-600">{errorMessage}</p> : null}
 
       <div className="mt-6 flex items-center justify-end gap-3">
