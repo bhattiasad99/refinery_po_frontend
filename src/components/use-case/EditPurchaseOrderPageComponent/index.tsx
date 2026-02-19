@@ -123,7 +123,7 @@ export default function EditPurchaseOrderPageComponent({
 
   if (!purchaseOrder) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
         <Link
           href="/purchase-orders"
           className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
@@ -144,7 +144,7 @@ export default function EditPurchaseOrderPageComponent({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
       <Link
         href={`/purchase-orders/${id}`}
         className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"

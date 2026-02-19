@@ -155,7 +155,7 @@ export default function CreatePurchaseOrderStepThree({
     if (!isValid) return
 
     setIsSubmitting(true)
-    router.push(`/purchase-orders/new/step-4/${draftId}`)
+    router.push(`/purchase-orders/new/preview/${draftId}`)
   }
 
   const onBack = () => {

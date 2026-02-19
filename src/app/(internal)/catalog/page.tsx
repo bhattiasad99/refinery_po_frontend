@@ -1,8 +1,13 @@
-import CatalogPageComponent from "@/components/use-case/CatalogPageComponent"
+import { Suspense, lazy } from "react"
+import { CatalogPageFallback } from "@/components/use-case/CatalogPageComponent/fallback"
+
+const CatalogPageComponent = lazy(() => import("@/components/use-case/CatalogPageComponent"))
 
 const CatalogPage = () => {
   return (
-    <CatalogPageComponent />
+    <Suspense fallback={<CatalogPageFallback />}>
+      <CatalogPageComponent />
+    </Suspense>
   )
 }
 

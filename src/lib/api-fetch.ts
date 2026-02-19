@@ -1,5 +1,6 @@
 import "server-only"
 
+import { redirect } from "next/navigation"
 import { clearAuthCookies, extractRefreshFromGateway, getAccessTokenCookie, getRefreshTokenCookie, setAccessTokenCookie, setRefreshTokenCookie } from "@/lib/auth/server-auth"
 import { getGatewayBaseUrl, REFRESH_COOKIE_NAME } from "@/lib/auth/constants"
 
@@ -45,6 +46,26 @@ async function refreshAccessToken(): Promise<boolean> {
   return true
 }
 
+async function bestEffortLogoutAndClearCookies(): Promise<void> {
+  const refreshToken = await getRefreshTokenCookie()
+
+  try {
+    await fetch(`${getGatewayBaseUrl()}/auth/logout`, {
+      method: "POST",
+      headers: refreshToken
+        ? {
+          cookie: `${REFRESH_COOKIE_NAME}=${encodeURIComponent(refreshToken)}`,
+        }
+        : undefined,
+      cache: "no-store",
+    })
+  } catch {
+    // Ignore network failures; local cookie clearing is still required.
+  }
+
+  await clearAuthCookies()
+}
+
 export async function apiFetch(path: string, options: FetchOptions = {}): Promise<Response> {
   const { retryOnUnauthorized = true, headers: originalHeaders, ...init } = options
   const headers = new Headers(originalHeaders)
@@ -66,7 +87,8 @@ export async function apiFetch(path: string, options: FetchOptions = {}): Promis
 
   const refreshed = await refreshAccessToken()
   if (!refreshed) {
-    return response
+    await bestEffortLogoutAndClearCookies()
+    redirect("/login")
   }
 
   const retryHeaders = new Headers(originalHeaders)
@@ -80,6 +102,11 @@ export async function apiFetch(path: string, options: FetchOptions = {}): Promis
     headers: retryHeaders,
     cache: "no-store",
   })
+
+  if (response.status === 401) {
+    await bestEffortLogoutAndClearCookies()
+    redirect("/login")
+  }
 
   return response
 }

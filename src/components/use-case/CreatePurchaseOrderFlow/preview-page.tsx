@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CircleCheckBig } from "lucide-react"
+import {
+  CircleCheckBig,
+  CreditCard,
+  ListChecks,
+  UserRound,
+} from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 import {
   PAYMENT_TERM_OPTIONS,
@@ -18,6 +22,27 @@ type CreatePurchaseOrderPreviewProps = {
   draftId: string
 }
 
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+})
+
+function ReviewField({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-md border border-slate-200/70 bg-white p-3">
+      <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">{label}</p>
+      <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
+    </div>
+  )
+}
+
 export default function CreatePurchaseOrderPreview({
   draftId,
 }: CreatePurchaseOrderPreviewProps) {
@@ -26,6 +51,8 @@ export default function CreatePurchaseOrderPreview({
   const [draft, setDraft] = useState<PurchaseOrderDraft | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const purchaseOrderTotal =
+    draft?.step2.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) ?? 0
 
   useEffect(() => {
     const loadPageData = async () => {
@@ -41,8 +68,39 @@ export default function CreatePurchaseOrderPreview({
           needByDate: undefined,
         },
         step2: {
-          supplierName: "",
-          items: [],
+          supplierName: "Qatar Industrial Supply Co.",
+          items: [
+            {
+              id: "li-1",
+              catalogItemId: "CAT-001",
+              item: "Stainless Steel Gate Valve 2in",
+              supplier: "Qatar Industrial Supply Co.",
+              category: "Valves",
+              description: "ANSI 150, threaded ends",
+              quantity: 12,
+              unitPrice: 145,
+            },
+            {
+              id: "li-2",
+              catalogItemId: "CAT-014",
+              item: "Pressure Gauge 0-10 bar",
+              supplier: "Qatar Industrial Supply Co.",
+              category: "Instrumentation",
+              description: "Glycerin filled, 1/4in NPT",
+              quantity: 8,
+              unitPrice: 38,
+            },
+            {
+              id: "li-3",
+              catalogItemId: "CAT-022",
+              item: "Industrial Safety Gloves",
+              supplier: "Qatar Industrial Supply Co.",
+              category: "Safety",
+              description: "Heat resistant, pair",
+              quantity: 30,
+              unitPrice: 9,
+            },
+          ],
         },
         step3: {
           paymentTerm:
@@ -79,68 +137,96 @@ export default function CreatePurchaseOrderPreview({
 
   return (
     <StepShell
-      title="Preview Purchase Order"
+      title="Review Purchase Order"
       description="Review all draft sections before final submission."
     >
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading preview...</p>
+        <p className="text-muted-foreground text-sm">Loading review...</p>
       ) : (
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-semibold">Draft ID</p>
-                <Badge variant="outline">{draft?.id}</Badge>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="space-y-5">
           {draft && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardContent className="space-y-2 p-4 text-sm">
-                  <p className="font-semibold">Step 1</p>
-                  <p>Requested By (Department): {draft.step1.requestedByDepartment}</p>
-                  <p>Requested By (User): {draft.step1.requestedByUser}</p>
-                  <p>Budget Code: {draft.step1.budgetCode}</p>
-                  <p>Need By Date: {draft.step1.needByDate ?? "Not specified"}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="space-y-2 p-4 text-sm">
-                  <p className="font-semibold">Step 2</p>
-                  <p>
-                    Supplier Name:{" "}
-                    {draft.step2.supplierName || "No Supplier Added, please add items"}
-                  </p>
-                  <p>Items Count: {draft.step2.items.length}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="space-y-2 p-4 text-sm">
-                  <p className="font-semibold">Step 3</p>
-                  <p>Payment Type: {draft.step3.paymentTerm.label}</p>
-                  <p>Payment Detail: {draft.step3.paymentTerm.description}</p>
-                  <p>Tax Included: {draft.step3.taxIncluded ? "Yes" : "No"}</p>
-                </CardContent>
-              </Card>
-              {[draft.step4, draft.step5].map((stepData, index) => (
-                <Card key={index}>
-                  <CardContent className="space-y-2 p-4 text-sm">
-                    <p className="font-semibold">Step {index + 4}</p>
-                    <p>Primary: {stepData.primary}</p>
-                    <p>Secondary: {stepData.secondary}</p>
-                    <p>Tertiary: {stepData.tertiary}</p>
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card className="border-slate-200/80">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <UserRound className="size-4 text-slate-600" />
+                      Basic Info
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-2 pt-0">
+                    <ReviewField label="Requested By (Department)" value={draft.step1.requestedByDepartment} />
+                    <ReviewField label="Requested By (User)" value={draft.step1.requestedByUser} />
+                    <ReviewField label="Budget Code" value={draft.step1.budgetCode} />
+                    <ReviewField label="Need By Date" value={draft.step1.needByDate ?? "Not specified"} />
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+
+                <Card className="border-slate-200/80">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <ListChecks className="size-4 text-slate-600" />
+                      Items
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-2 pt-0">
+                    <ReviewField
+                      label="Supplier Name"
+                      value={draft.step2.supplierName || "No Supplier Added, please add items"}
+                    />
+                    <ReviewField label="Items Count" value={`${draft.step2.items.length}`} />
+                    <div className="space-y-2 rounded-md border border-slate-200/70 bg-white p-3">
+                      <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">
+                        Line Items
+                      </p>
+                      {draft.step2.items.map((item) => (
+                        <div key={item.id} className="rounded-md border border-slate-200 p-2">
+                          <p className="text-sm font-semibold text-slate-900">{item.item}</p>
+                          <p className="text-xs text-slate-600">
+                            {item.quantity} x {currencyFormatter.format(item.unitPrice)} • {item.category}
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-slate-800">
+                            Line Total: {currencyFormatter.format(item.quantity * item.unitPrice)}
+                          </p>
+                        </div>
+                      ))}
+                      <div className="rounded-md border border-slate-300 bg-slate-50 p-3">
+                        <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">
+                          Purchase Order Total
+                        </p>
+                        <p className="mt-1 text-base font-bold text-slate-900">
+                          {currencyFormatter.format(purchaseOrderTotal)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-200/80 md:col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <CreditCard className="size-4 text-slate-600" />
+                      Payment Terms
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-2 pt-0 md:grid-cols-2">
+                    <ReviewField label="Payment Type" value={draft.step3.paymentTerm.label} />
+                    <ReviewField label="Tax Included" value={draft.step3.taxIncluded ? "Yes" : "No"} />
+                    <ReviewField label="Term Detail" value={draft.step3.paymentTerm.description} />
+                    <ReviewField
+                      label="Due Date Input"
+                      value={draft.step1.needByDate ?? "No explicit due date provided"}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </>
           )}
 
           <div className="mt-2 flex items-center justify-between gap-3">
             <Button
               variant="outline"
-              onClick={() => router.push(`/purchase-orders/new/step-5/${draftId}`)}
+              onClick={() => router.push(`/purchase-orders/new/step-3/${draftId}`)}
               disabled={isSubmitting}
             >
               Back

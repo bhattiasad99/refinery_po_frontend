@@ -3,12 +3,10 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { DragDropContext, DropResult } from "@hello-pangea/dnd"
-import { ListFilter, PlusCircle, Search } from "lucide-react"
+import { PlusCircle, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { KanbanColumnComponent } from "./kanban-column"
 import { initialKanbanBoard } from "./mock-data"
@@ -99,23 +97,17 @@ export default function PurchaseOrdersPageComponent() {
   )
 
   return (
-    <Tabs defaultValue="board" className="flex w-full max-w-full flex-col gap-6 min-w-0">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <TabsList>
-          <TabsTrigger value="board">Board</TabsTrigger>
-          <TabsTrigger value="list">List</TabsTrigger>
-          <TabsTrigger value="table">Table</TabsTrigger>
-        </TabsList>
-
-        <div className="flex w-full flex-wrap items-center gap-3 md:w-auto">
+    <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
+      <div className="flex flex-wrap items-center md:justify-end w-full gap-4">
+        <div className="flex w-full flex-wrap md:justify-end items-center gap-3 md:w-auto">
           <div className="relative w-full md:w-72">
             <Search className="text-muted-foreground pointer-events-none absolute left-3 top-2.5 size-4" />
             <Input placeholder="Search purchase orders..." className="h-10 pl-9" />
           </div>
-          <Button variant="outline" className="h-10 px-4">
+          {/* <Button variant="outline" className="h-10 px-4">
             <ListFilter />
             Filters
-          </Button>
+          </Button> */}
           <Button asChild className="h-10 px-4">
             <Link href="/purchase-orders/new">
               <PlusCircle />
@@ -125,7 +117,7 @@ export default function PurchaseOrdersPageComponent() {
         </div>
       </div>
 
-      <TabsContent value="board" className="min-w-0">
+      <div className="min-w-0">
         <DragDropContext
           onDragEnd={
             KANBAN_DRAG_ENABLED ? onDragEnd : () => undefined
@@ -144,23 +136,7 @@ export default function PurchaseOrdersPageComponent() {
             </div>
           </div>
         </DragDropContext>
-      </TabsContent>
-
-      <TabsContent value="list">
-        <Card className="rounded-2xl">
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            List view placeholder. Switch back to Board to use drag and drop.
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="table">
-        <Card className="rounded-2xl">
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            Table view placeholder. Switch back to Board to use drag and drop.
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
+      </div>
+    </div>
   )
 }

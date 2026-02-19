@@ -48,6 +48,11 @@ export default function CreatePurchaseOrderStepOne() {
     { label: "CC-7603", value: "CC-7603" },
   ]
 
+  const today = new Date()
+  const minNeedByDate = `${today.getFullYear()}-${String(
+    today.getMonth() + 1
+  ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+
   const onNext = async () => {
     setIsSubmitting(true)
     const mockDraftId =
@@ -109,6 +114,7 @@ export default function CreatePurchaseOrderStepOne() {
           <Input
             id="need-by-date"
             type="date"
+            min={minNeedByDate}
             value={needByDate}
             onChange={(event) => setNeedByDate(event.target.value)}
             disabled={isLoadingDraft}
