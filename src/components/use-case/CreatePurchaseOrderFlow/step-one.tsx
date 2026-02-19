@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 import SearchableDropdown, {
@@ -10,28 +10,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-import {
-  createDraft,
-  getActiveDraftId,
-  getDraft,
-  updateDraftStep,
-} from "./draft-api"
 import { StepShell } from "./step-shell"
 
-type CreatePurchaseOrderStepOneProps = {
-  initialDraftId?: string
-}
-
-export default function CreatePurchaseOrderStepOne({
-  initialDraftId,
-}: CreatePurchaseOrderStepOneProps) {
+export default function CreatePurchaseOrderStepOne() {
   const router = useRouter()
 
   const [requestedByDepartment, setRequestedByDepartment] = useState("")
   const [requestedByUser, setRequestedByUser] = useState("")
   const [budgetCode, setBudgetCode] = useState("")
   const [needByDate, setNeedByDate] = useState("")
-  const [isLoadingDraft, setIsLoadingDraft] = useState(true)
+  const [isLoadingDraft] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const departmentOptions: SearchableDropdownOption[] = [
@@ -60,58 +48,13 @@ export default function CreatePurchaseOrderStepOne({
     { label: "CC-7603", value: "CC-7603" },
   ]
 
-  useEffect(() => {
-    const loadExistingDraft = async () => {
-      const draftId = initialDraftId ?? getActiveDraftId() ?? undefined
-      if (!draftId) {
-        setIsLoadingDraft(false)
-        return
-      }
-
-      const existingDraft = await getDraft(draftId)
-      if (existingDraft) {
-        const stepOne = existingDraft.step1 as typeof existingDraft.step1 & {
-          requestedBy?: string
-          department?: string
-          budget?: string
-          latestBy?: string
-        }
-
-        setRequestedByDepartment(
-          stepOne.requestedByDepartment ?? stepOne.department ?? ""
-        )
-        setRequestedByUser(stepOne.requestedByUser ?? stepOne.requestedBy ?? "")
-        setBudgetCode(stepOne.budgetCode ?? stepOne.budget ?? "")
-        setNeedByDate(stepOne.needByDate ?? stepOne.latestBy ?? "")
-      }
-
-      setIsLoadingDraft(false)
-    }
-
-    loadExistingDraft()
-  }, [initialDraftId])
-
   const onNext = async () => {
     setIsSubmitting(true)
-
-    const draftId = initialDraftId ?? getActiveDraftId() ?? undefined
-    const step1Payload = {
-      requestedByDepartment,
-      requestedByUser,
-      budgetCode,
-      needByDate: needByDate || undefined,
-    }
-
-    if (draftId) {
-      const updatedDraft = await updateDraftStep(draftId, "step1", step1Payload)
-      if (updatedDraft) {
-        router.push(`/purchase-orders/new/step-2/${updatedDraft.id}`)
-        return
-      }
-    }
-
-    const createdDraft = await createDraft(step1Payload)
-    router.push(`/purchase-orders/new/step-2/${createdDraft.id}`)
+    const mockDraftId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(Date.now())
+    router.push(`/purchase-orders/new/step-2/${mockDraftId}`)
   }
 
   const isFormValid =

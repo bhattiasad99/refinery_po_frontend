@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
-import { getDraft, submitDraft, type PurchaseOrderDraft } from "./draft-api"
+import {
+  PAYMENT_TERM_OPTIONS,
+  type PurchaseOrderDraft,
+} from "./draft-api"
 import { StepShell } from "./step-shell"
 
 type CreatePurchaseOrderPreviewProps = {
@@ -21,38 +24,57 @@ export default function CreatePurchaseOrderPreview({
   const router = useRouter()
 
   const [draft, setDraft] = useState<PurchaseOrderDraft | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    const loadDraft = async () => {
-      const existingDraft = await getDraft(draftId)
-      setDraft(existingDraft)
+    const loadPageData = async () => {
+      setIsLoading(true)
+      setDraft({
+        id: draftId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        step1: {
+          requestedByDepartment: "Procurement Dept",
+          requestedByUser: "Ayesha Khan",
+          budgetCode: "CC-1234",
+          needByDate: undefined,
+        },
+        step2: {
+          supplierName: "",
+          items: [],
+        },
+        step3: {
+          paymentTerm:
+            PAYMENT_TERM_OPTIONS.find((option) => option.id === "NET_30") ??
+            PAYMENT_TERM_OPTIONS[0],
+          taxIncluded: false,
+          advancePercentage: null,
+          balanceDueInDays: null,
+          customTerms: "",
+          milestones: [],
+        },
+        step4: {
+          primary: "",
+          secondary: "",
+          tertiary: "",
+        },
+        step5: {
+          primary: "",
+          secondary: "",
+          tertiary: "",
+        },
+      })
       setIsLoading(false)
     }
 
-    loadDraft()
+    loadPageData()
   }, [draftId])
 
   const onSubmit = async () => {
     setIsSubmitting(true)
-
-    await submitDraft(draftId)
     router.push("/purchase-orders")
     router.refresh()
-  }
-
-  if (!isLoading && !draft) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <p className="text-lg font-semibold">Draft not found</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            This draft is unavailable. Start a new purchase order.
-          </p>
-        </CardContent>
-      </Card>
-    )
   }
 
   return (
@@ -84,11 +106,28 @@ export default function CreatePurchaseOrderPreview({
                   <p>Need By Date: {draft.step1.needByDate ?? "Not specified"}</p>
                 </CardContent>
               </Card>
-
-              {[draft.step2, draft.step3, draft.step4, draft.step5].map((stepData, index) => (
+              <Card>
+                <CardContent className="space-y-2 p-4 text-sm">
+                  <p className="font-semibold">Step 2</p>
+                  <p>
+                    Supplier Name:{" "}
+                    {draft.step2.supplierName || "No Supplier Added, please add items"}
+                  </p>
+                  <p>Items Count: {draft.step2.items.length}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="space-y-2 p-4 text-sm">
+                  <p className="font-semibold">Step 3</p>
+                  <p>Payment Type: {draft.step3.paymentTerm.label}</p>
+                  <p>Payment Detail: {draft.step3.paymentTerm.description}</p>
+                  <p>Tax Included: {draft.step3.taxIncluded ? "Yes" : "No"}</p>
+                </CardContent>
+              </Card>
+              {[draft.step4, draft.step5].map((stepData, index) => (
                 <Card key={index}>
                   <CardContent className="space-y-2 p-4 text-sm">
-                    <p className="font-semibold">Step {index + 2}</p>
+                    <p className="font-semibold">Step {index + 4}</p>
                     <p>Primary: {stepData.primary}</p>
                     <p>Secondary: {stepData.secondary}</p>
                     <p>Tertiary: {stepData.tertiary}</p>

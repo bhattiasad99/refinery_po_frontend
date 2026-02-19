@@ -13,8 +13,8 @@ type CreatePurchaseOrderFlowLayoutShellProps = {
 
 const STEP_LABELS: Record<number, string> = {
   1: "Basic Info",
-  2: "Commercial",
-  3: "Delivery",
+  2: "Items",
+  3: "Payment Terms",
   4: "Compliance",
   5: "Final Notes",
   6: "Preview",

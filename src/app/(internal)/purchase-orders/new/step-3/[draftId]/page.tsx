@@ -1,4 +1,4 @@
-import CreatePurchaseOrderGenericStep from "@/components/use-case/CreatePurchaseOrderFlow/step-page"
+import CreatePurchaseOrderStepThree from "@/components/use-case/CreatePurchaseOrderFlow/step-three-payment-terms"
 
 type CreatePurchaseOrderStepThreePageProps = {
   params: Promise<{
@@ -11,7 +11,7 @@ const CreatePurchaseOrderStepThreePage = async ({
 }: CreatePurchaseOrderStepThreePageProps) => {
   const { draftId } = await params
 
-  return <CreatePurchaseOrderGenericStep draftId={draftId} step={3} />
+  return <CreatePurchaseOrderStepThree draftId={draftId} />
 }
 
 export default CreatePurchaseOrderStepThreePage
