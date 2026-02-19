@@ -9,11 +9,33 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 import { KanbanColumnComponent } from "./kanban-column"
-import { initialKanbanBoard } from "./mock-data"
 import { KanbanBoardState, KanbanColumn, KanbanColumnId } from "./types"
 
 const KANBAN_DRAG_ENABLED = false
 const SEARCH_DEBOUNCE_MS = 250
+const COLUMN_ORDER: KanbanColumnId[] = ["draft", "submitted", "approved", "rejected", "fulfilled"]
+
+function createEmptyBoard(): KanbanBoardState {
+  return {
+    purchaseOrders: {},
+    columns: {
+      draft: { id: "draft", title: "Draft", purchaseOrderIds: [] },
+      submitted: { id: "submitted", title: "Submitted", purchaseOrderIds: [] },
+      approved: { id: "approved", title: "Approved", purchaseOrderIds: [] },
+      rejected: { id: "rejected", title: "Rejected", purchaseOrderIds: [] },
+      fulfilled: { id: "fulfilled", title: "Fulfilled", purchaseOrderIds: [] },
+    },
+    columnOrder: COLUMN_ORDER,
+  }
+}
+
+type PurchaseOrderListRow = {
+  id: string
+  status: string | null
+  supplierName: string | null
+  requestedByUser: string | null
+  lineItems?: Array<unknown> | null
+}
 
 const normalize = (value: string) => value.toLowerCase().trim()
 
@@ -61,10 +83,94 @@ const movePurchaseOrderWithinColumn = (
   }
 }
 
+function mapStatusToColumnId(status: string | null): KanbanColumnId {
+  const normalized = (status ?? "").toLowerCase()
+  if (normalized === "submitted") return "submitted"
+  if (normalized === "approved") return "approved"
+  if (normalized === "rejected") return "rejected"
+  if (normalized === "fulfilled") return "fulfilled"
+  return "draft"
+}
+
+function toNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+async function loadBoardFromApi(): Promise<KanbanBoardState> {
+  const response = await fetch("/api/purchase-orders", { cache: "no-store" })
+  if (!response.ok) {
+    throw new Error("Failed to load purchase orders")
+  }
+
+  const rows = (await response.json()) as PurchaseOrderListRow[]
+  const purchaseOrders: KanbanBoardState["purchaseOrders"] = {}
+  const columnBuckets: Record<KanbanColumnId, string[]> = {
+    draft: [],
+    submitted: [],
+    approved: [],
+    rejected: [],
+    fulfilled: [],
+  }
+
+  for (const row of rows) {
+    const lineItems = Array.isArray(row.lineItems) ? row.lineItems : []
+    const totalPrice = lineItems.reduce<number>((runningTotal, item) => {
+      if (!item || typeof item !== "object") {
+        return runningTotal
+      }
+      const lineItem = item as Record<string, unknown>
+      return runningTotal + toNumber(lineItem.quantity) * toNumber(lineItem.unitPrice)
+    }, 0)
+
+    purchaseOrders[row.id] = {
+      id: row.id,
+      supplierName: row.supplierName ?? "Unknown Supplier",
+      requestedBy: row.requestedByUser ?? "Unknown Requester",
+      numberOfItems: lineItems.length,
+      totalPrice,
+    }
+
+    const columnId = mapStatusToColumnId(row.status)
+    columnBuckets[columnId].push(row.id)
+  }
+
+  return {
+    purchaseOrders,
+    columns: {
+      draft: { id: "draft", title: "Draft", purchaseOrderIds: columnBuckets.draft },
+      submitted: { id: "submitted", title: "Submitted", purchaseOrderIds: columnBuckets.submitted },
+      approved: { id: "approved", title: "Approved", purchaseOrderIds: columnBuckets.approved },
+      rejected: { id: "rejected", title: "Rejected", purchaseOrderIds: columnBuckets.rejected },
+      fulfilled: { id: "fulfilled", title: "Fulfilled", purchaseOrderIds: columnBuckets.fulfilled },
+    },
+    columnOrder: COLUMN_ORDER,
+  }
+}
+
 export default function PurchaseOrdersPageComponent() {
-  const [board, setBoard] = useState<KanbanBoardState>(initialKanbanBoard)
+  const [board, setBoard] = useState<KanbanBoardState>(() => createEmptyBoard())
   const [searchDraft, setSearchDraft] = useState("")
   const [search, setSearch] = useState("")
+
+  useEffect(() => {
+    let isMounted = true
+    const hydrateBoard = async () => {
+      try {
+        const nextBoard = await loadBoardFromApi()
+        if (isMounted) {
+          setBoard(nextBoard)
+        }
+      } catch {
+        if (isMounted) {
+          setBoard(createEmptyBoard())
+        }
+      }
+    }
+    hydrateBoard()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 import SearchableDropdown, {
   type SearchableDropdownOption,
@@ -19,10 +19,15 @@ import {
 
 import { StepShell } from "./step-shell"
 
-export default function CreatePurchaseOrderStepOne() {
+type CreatePurchaseOrderStepOneProps = {
+  initialDraftId?: string | null
+}
+
+export default function CreatePurchaseOrderStepOne({
+  initialDraftId = null,
+}: CreatePurchaseOrderStepOneProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const draftId = searchParams.get("draftId")?.trim() || null
+  const draftId = initialDraftId?.trim() || null
 
   const [requestedByDepartment, setRequestedByDepartment] = useState("")
   const [requestedByUser, setRequestedByUser] = useState("")

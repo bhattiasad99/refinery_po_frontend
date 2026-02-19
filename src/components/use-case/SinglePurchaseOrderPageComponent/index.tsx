@@ -1,274 +1,394 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link"
 import { ArrowLeft, CalendarClock, CircleCheckBig, CircleDashed, CircleX } from "lucide-react"
 
-import { MOCK_PURCHASE_ORDERS } from "./mock-data"
+import { apiFetch } from "@/lib/api-fetch"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 type IProps = {
-    id: string
+  id: string
 }
 
-type PurchaseOrder = (typeof MOCK_PURCHASE_ORDERS)[number]
+type GatewayResponse<T> = {
+  body?: T
+  message?: string
+}
+
+type PurchaseOrderLineItem = {
+  id: string
+  item: string | null
+  quantity: number | null
+  unitPrice: number | null
+  category: string | null
+}
+
+type PurchaseOrderApiRow = {
+  id: string
+  status: string
+  supplierName: string | null
+  requestedByDepartment: string | null
+  requestedByUser: string | null
+  createdAt: string
+  updatedAt: string
+  lineItems: PurchaseOrderLineItem[]
+}
+
+type PurchaseOrderTimelineKey = "created" | "submitted" | "approved" | "rejected" | "fulfilled"
+
+type TimelineEntry = {
+  time: string
+  actor: string
+} | null
+
+type PurchaseOrderViewModel = {
+  id: string
+  status: "draft" | "submitted" | "approved" | "rejected" | "fulfilled"
+  supplierName: string
+  requestedBy: string
+  createdAt: string
+  updatedAt: string
+  lineItems: PurchaseOrderLineItem[]
+  totalPrice: number
+  timeline: Record<PurchaseOrderTimelineKey, TimelineEntry>
+}
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
+  style: "currency",
+  currency: "USD",
 })
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
+  dateStyle: "medium",
+  timeStyle: "short",
 })
 
-const getStatusBadge = (status: PurchaseOrder["status"]) => {
-    if (status === "fulfilled") {
-        return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Fulfilled</Badge>
-    }
-    if (status === "rejected") {
-        return <Badge className="bg-rose-600 text-white hover:bg-rose-600">Rejected</Badge>
-    }
-    if (status === "approved") {
-        return <Badge className="bg-sky-600 text-white hover:bg-sky-600">Approved</Badge>
-    }
-    if (status === "submitted") {
-        return <Badge className="bg-amber-500 text-black hover:bg-amber-500">Submitted</Badge>
-    }
+const timelineOrder: PurchaseOrderTimelineKey[] = [
+  "created",
+  "submitted",
+  "approved",
+  "rejected",
+  "fulfilled",
+]
 
-    return <Badge variant="secondary">Draft</Badge>
+function normalizeStatus(
+  status: string | null | undefined
+): "draft" | "submitted" | "approved" | "rejected" | "fulfilled" {
+  const normalized = (status ?? "").toLowerCase()
+  if (normalized === "submitted") return "submitted"
+  if (normalized === "approved") return "approved"
+  if (normalized === "rejected") return "rejected"
+  if (normalized === "fulfilled") return "fulfilled"
+  return "draft"
 }
 
-const getHeaderActions = (status: PurchaseOrder["status"]) => {
-    if (status === "draft") return ["Edit", "Submit"]
-    if (status === "submitted") return ["Approve", "Reject"]
-    if (status === "approved") return ["Fulfill"]
-    return []
+function sumOrderTotal(lineItems: PurchaseOrderLineItem[]): number {
+  return lineItems.reduce(
+    (runningTotal, item) =>
+      runningTotal +
+      (typeof item.quantity === "number" ? item.quantity : 0) *
+        (typeof item.unitPrice === "number" ? item.unitPrice : 0),
+    0
+  )
 }
 
-const timelineOrder = ["created", "submitted", "approved", "rejected", "fulfilled"] as const
+function buildTimeline(viewModel: {
+  status: PurchaseOrderViewModel["status"]
+  createdAt: string
+  updatedAt: string
+  actor: string
+}): Record<PurchaseOrderTimelineKey, TimelineEntry> {
+  const created = { time: viewModel.createdAt, actor: viewModel.actor }
+  const submitted =
+    viewModel.status === "submitted" ||
+    viewModel.status === "approved" ||
+    viewModel.status === "rejected" ||
+    viewModel.status === "fulfilled"
+      ? { time: viewModel.updatedAt, actor: viewModel.actor }
+      : null
+  const approved =
+    viewModel.status === "approved" || viewModel.status === "fulfilled"
+      ? { time: viewModel.updatedAt, actor: viewModel.actor }
+      : null
+  const rejected = viewModel.status === "rejected" ? { time: viewModel.updatedAt, actor: viewModel.actor } : null
+  const fulfilled = viewModel.status === "fulfilled" ? { time: viewModel.updatedAt, actor: viewModel.actor } : null
 
-const getTimelineIcon = (key: (typeof timelineOrder)[number], active: boolean) => {
-    if (!active) return <CircleDashed className="size-4 text-muted-foreground" />
-    if (key === "rejected") return <CircleX className="size-4 text-rose-600" />
-    return <CircleCheckBig className="size-4 text-emerald-600" />
+  return {
+    created,
+    submitted,
+    approved,
+    rejected,
+    fulfilled,
+  }
 }
 
-const getTimelineMeta = (
-    key: (typeof timelineOrder)[number],
-    entry: PurchaseOrder["timeline"][typeof key]
-) => {
-    if (!entry) return "Pending"
+function mapPurchaseOrderToViewModel(purchaseOrder: PurchaseOrderApiRow): PurchaseOrderViewModel {
+  const status = normalizeStatus(purchaseOrder.status)
+  const actor = purchaseOrder.requestedByUser ?? "Unknown User"
 
-    if (key === "created") return `By ${(entry as any).createdBy}`
-    if (key === "submitted") return `By ${(entry as any).submittedBy}`
-    if (key === "approved") return `By ${(entry as any).approvedBy}`
-    if (key === "rejected") return `By ${(entry as any).rejectedBy}`
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return `By ${(entry as any).fulfilledBy}`
+  return {
+    id: purchaseOrder.id,
+    status,
+    supplierName: purchaseOrder.supplierName ?? "Unknown Supplier",
+    requestedBy: purchaseOrder.requestedByDepartment ?? actor,
+    createdAt: purchaseOrder.createdAt,
+    updatedAt: purchaseOrder.updatedAt,
+    lineItems: purchaseOrder.lineItems ?? [],
+    totalPrice: sumOrderTotal(purchaseOrder.lineItems ?? []),
+    timeline: buildTimeline({
+      status,
+      createdAt: purchaseOrder.createdAt,
+      updatedAt: purchaseOrder.updatedAt,
+      actor,
+    }),
+  }
 }
 
-const SinglePurchaseOrderPageComponent = ({ id }: IProps) => {
-    const purchaseOrder = MOCK_PURCHASE_ORDERS.find(
-        (order) => String(order.id) === id
-    )
+async function getPurchaseOrder(id: string): Promise<PurchaseOrderViewModel | null> {
+  const response = await apiFetch(`/purchase-orders/${encodeURIComponent(id)}`)
+  if (response.status === 404) {
+    return null
+  }
+  if (!response.ok) {
+    throw new Error("Failed to fetch purchase order")
+  }
 
-    if (!purchaseOrder) {
-        return (
-            <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
-                <Link
-                    href="/purchase-orders"
-                    className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
-                >
-                    <ArrowLeft className="size-4" />
-                    Back to purchase orders
-                </Link>
-                <Card>
-                    <CardContent className="p-8 text-center">
-                        <p className="text-lg font-semibold">Purchase order not found</p>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                            No purchase order exists for id {id}.
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-        )
-    }
+  const payload = (await response.json()) as GatewayResponse<PurchaseOrderApiRow>
+  if (!payload.body) {
+    return null
+  }
 
-    const headerActions = getHeaderActions(purchaseOrder.status)
+  return mapPurchaseOrderToViewModel(payload.body)
+}
 
+const getStatusBadge = (status: PurchaseOrderViewModel["status"]) => {
+  if (status === "fulfilled") {
+    return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Fulfilled</Badge>
+  }
+  if (status === "rejected") {
+    return <Badge className="bg-rose-600 text-white hover:bg-rose-600">Rejected</Badge>
+  }
+  if (status === "approved") {
+    return <Badge className="bg-sky-600 text-white hover:bg-sky-600">Approved</Badge>
+  }
+  if (status === "submitted") {
+    return <Badge className="bg-amber-500 text-black hover:bg-amber-500">Submitted</Badge>
+  }
+
+  return <Badge variant="secondary">Draft</Badge>
+}
+
+const getHeaderActions = (status: PurchaseOrderViewModel["status"]) => {
+  if (status === "draft") return ["Edit", "Submit"]
+  if (status === "submitted") return ["Approve", "Reject"]
+  if (status === "approved") return ["Fulfill"]
+  return []
+}
+
+const getTimelineIcon = (key: PurchaseOrderTimelineKey, active: boolean) => {
+  if (!active) return <CircleDashed className="size-4 text-muted-foreground" />
+  if (key === "rejected") return <CircleX className="size-4 text-rose-600" />
+  return <CircleCheckBig className="size-4 text-emerald-600" />
+}
+
+const getTimelineMeta = (key: PurchaseOrderTimelineKey, entry: TimelineEntry) => {
+  if (!entry) return "Pending"
+  if (key === "created") return `By ${entry.actor}`
+  if (key === "submitted") return `By ${entry.actor}`
+  if (key === "approved") return `By ${entry.actor}`
+  if (key === "rejected") return `By ${entry.actor}`
+  return `By ${entry.actor}`
+}
+
+const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
+  const purchaseOrder = await getPurchaseOrder(id)
+
+  if (!purchaseOrder) {
     return (
-        <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
-            <Link
-                href="/purchase-orders"
-                className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
-            >
-                <ArrowLeft className="size-4" />
-                Back to purchase orders
-            </Link>
-
-            <Card className="overflow-hidden border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
-                <CardHeader className="gap-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Badge className="bg-white/15 text-white hover:bg-white/15">
-                                PO #{purchaseOrder.id}
-                            </Badge>
-                            {getStatusBadge(purchaseOrder.status)}
-                        </div>
-                        {headerActions.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-2">
-                                {headerActions.map((action) => (
-                                    action === "Edit" ? (
-                                        <Button
-                                            key={action}
-                                            asChild
-                                            size="sm"
-                                            variant="secondary"
-                                            className="bg-white/15 text-white hover:bg-white/25"
-                                        >
-                                            <Link href={`/purchase-orders/${purchaseOrder.id}/edit`}>{action}</Link>
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            key={action}
-                                            size="sm"
-                                            variant={action === "Reject" ? "destructive" : "secondary"}
-                                            className={
-                                                action === "Reject"
-                                                    ? ""
-                                                    : action === "Submit" || action === "Approve" || action === "Fulfill"
-                                                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                                        : "bg-white/15 text-white hover:bg-white/25"
-                                            }
-                                        >
-                                            {action}
-                                        </Button>
-                                    )
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <CardTitle className="text-2xl leading-tight md:text-3xl">
-                        {purchaseOrder.supplier_name}
-                    </CardTitle>
-                    <p className="text-sm text-slate-200">
-                        Requested by {purchaseOrder.requested_by}
-                    </p>
-                </CardHeader>
-            </Card>
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-muted-foreground text-xs">Order Total</p>
-                        <p className="mt-1 text-2xl font-semibold">
-                            {currencyFormatter.format(purchaseOrder.total_price_of_order)}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-muted-foreground text-xs">Line Items</p>
-                        <p className="mt-1 text-2xl font-semibold">
-                            {purchaseOrder.purchase_order_details.length}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-muted-foreground text-xs">Created At</p>
-                        <p className="mt-1 text-sm font-semibold">
-                            {dateTimeFormatter.format(new Date(purchaseOrder.created_at))}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-muted-foreground text-xs">Requested By</p>
-                        <p className="mt-1 text-sm font-semibold">{purchaseOrder.requested_by}</p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-3">
-                <Card className="xl:col-span-2">
-                    <CardHeader>
-                        <CardTitle>Purchase Order Items</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-muted-foreground border-b text-left">
-                                        <th className="px-6 py-3 font-medium">Item ID</th>
-                                        <th className="px-6 py-3 font-medium">Item Name</th>
-                                        <th className="px-6 py-3 font-medium text-right">Qty</th>
-                                        <th className="px-6 py-3 font-medium text-right">Rate</th>
-                                        <th className="px-6 py-3 font-medium text-right">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {purchaseOrder.purchase_order_details.map((item) => (
-                                        <tr key={item.id} className="border-b last:border-b-0">
-                                            <td className="px-6 py-4 font-medium">{item.id}</td>
-                                            <td className="px-6 py-4">{item.item_name}</td>
-                                            <td className="px-6 py-4 text-right">{item.quantity}</td>
-                                            <td className="px-6 py-4 text-right">{currencyFormatter.format(item.rate)}</td>
-                                            <td className="px-6 py-4 text-right font-semibold">
-                                                {currencyFormatter.format(item.total_cost)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td className="px-6 py-4" colSpan={3} />
-                                        <td className="px-6 py-4 text-right text-sm font-semibold">Grand Total</td>
-                                        <td className="px-6 py-4 text-right text-lg font-bold">
-                                            {currencyFormatter.format(purchaseOrder.total_price_of_order)}
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Timeline</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {timelineOrder.map((step) => {
-                            const entry = purchaseOrder.timeline[step]
-                            const isActive = Boolean(entry)
-                            return (
-                                <div key={step} className="flex items-start gap-3">
-                                    <div className="mt-0.5">{getTimelineIcon(step, isActive)}</div>
-                                    <div>
-                                        <p className="text-sm font-semibold capitalize">{step}</p>
-                                        <p className="text-muted-foreground text-xs">
-                                            {isActive ? dateTimeFormatter.format(new Date((entry as any).time)) : "Not yet"}
-                                        </p>
-                                        <p className="text-muted-foreground text-xs">{getTimelineMeta(step, entry)}</p>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </CardContent>
-                </Card>
-            </div>
-
-
-            <div className="text-muted-foreground inline-flex items-center gap-2 text-sm">
-                <CalendarClock className="size-4" />
-                Last updated from timeline data
-            </div>
-
-        </div>
+      <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
+        <Link
+          href="/purchase-orders"
+          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
+        >
+          <ArrowLeft className="size-4" />
+          Back to purchase orders
+        </Link>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-lg font-semibold">Purchase order not found</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              No purchase order exists for id {id}.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     )
+  }
+
+  const headerActions = getHeaderActions(purchaseOrder.status)
+
+  return (
+    <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
+      <Link
+        href="/purchase-orders"
+        className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-2 text-sm"
+      >
+        <ArrowLeft className="size-4" />
+        Back to purchase orders
+      </Link>
+
+      <Card className="overflow-hidden border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
+        <CardHeader className="gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{purchaseOrder.id}</Badge>
+              {getStatusBadge(purchaseOrder.status)}
+            </div>
+            {headerActions.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {headerActions.map((action) =>
+                  action === "Edit" ? (
+                    <Button
+                      key={action}
+                      asChild
+                      size="sm"
+                      variant="secondary"
+                      className="bg-white/15 text-white hover:bg-white/25"
+                    >
+                      <Link href={`/purchase-orders/${purchaseOrder.id}/edit`}>{action}</Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      key={action}
+                      size="sm"
+                      variant={action === "Reject" ? "destructive" : "secondary"}
+                      className={
+                        action === "Reject"
+                          ? ""
+                          : action === "Submit" || action === "Approve" || action === "Fulfill"
+                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                            : "bg-white/15 text-white hover:bg-white/25"
+                      }
+                    >
+                      {action}
+                    </Button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+          <CardTitle className="text-2xl leading-tight md:text-3xl">{purchaseOrder.supplierName}</CardTitle>
+          <p className="text-sm text-slate-200">Requested by {purchaseOrder.requestedBy}</p>
+        </CardHeader>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground text-xs">Order Total</p>
+            <p className="mt-1 text-2xl font-semibold">{currencyFormatter.format(purchaseOrder.totalPrice)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground text-xs">Line Items</p>
+            <p className="mt-1 text-2xl font-semibold">{purchaseOrder.lineItems.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground text-xs">Created At</p>
+            <p className="mt-1 text-sm font-semibold">
+              {dateTimeFormatter.format(new Date(purchaseOrder.createdAt))}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground text-xs">Requested By</p>
+            <p className="mt-1 text-sm font-semibold">{purchaseOrder.requestedBy}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle>Purchase Order Items</CardTitle>
+          </CardHeader>
+          <CardContent className="px-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-b text-left">
+                    <th className="px-6 py-3 font-medium">Item ID</th>
+                    <th className="px-6 py-3 font-medium">Item Name</th>
+                    <th className="px-6 py-3 font-medium text-right">Qty</th>
+                    <th className="px-6 py-3 font-medium text-right">Rate</th>
+                    <th className="px-6 py-3 font-medium text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchaseOrder.lineItems.map((item) => {
+                    const quantity = typeof item.quantity === "number" ? item.quantity : 0
+                    const rate = typeof item.unitPrice === "number" ? item.unitPrice : 0
+                    const total = quantity * rate
+                    return (
+                      <tr key={item.id} className="border-b last:border-b-0">
+                        <td className="px-6 py-4 font-medium">{item.id}</td>
+                        <td className="px-6 py-4">{item.item ?? "-"}</td>
+                        <td className="px-6 py-4 text-right">{quantity}</td>
+                        <td className="px-6 py-4 text-right">{currencyFormatter.format(rate)}</td>
+                        <td className="px-6 py-4 text-right font-semibold">{currencyFormatter.format(total)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td className="px-6 py-4" colSpan={3} />
+                    <td className="px-6 py-4 text-right text-sm font-semibold">Grand Total</td>
+                    <td className="px-6 py-4 text-right text-lg font-bold">
+                      {currencyFormatter.format(purchaseOrder.totalPrice)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Timeline</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {timelineOrder.map((step) => {
+              const entry = purchaseOrder.timeline[step]
+              const isActive = Boolean(entry)
+              return (
+                <div key={step} className="flex items-start gap-3">
+                  <div className="mt-0.5">{getTimelineIcon(step, isActive)}</div>
+                  <div>
+                    <p className="text-sm font-semibold capitalize">{step}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {isActive && entry ? dateTimeFormatter.format(new Date(entry.time)) : "Not yet"}
+                    </p>
+                    <p className="text-muted-foreground text-xs">{getTimelineMeta(step, entry)}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="text-muted-foreground inline-flex items-center gap-2 text-sm">
+        <CalendarClock className="size-4" />
+        Last updated from timeline data
+      </div>
+    </div>
+  )
 }
 
 export default SinglePurchaseOrderPageComponent

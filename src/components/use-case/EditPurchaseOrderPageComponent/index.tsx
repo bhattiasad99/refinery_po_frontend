@@ -32,7 +32,7 @@ export default function EditPurchaseOrderPageComponent({
   id,
 }: EditPurchaseOrderPageComponentProps) {
   const purchaseOrder = useMemo(
-    () => MOCK_PURCHASE_ORDERS.find((order) => String(order.id) === id),
+    () => MOCK_PURCHASE_ORDERS.find((order) => String(order.id) === id) ?? MOCK_PURCHASE_ORDERS[0],
     [id]
   )
 

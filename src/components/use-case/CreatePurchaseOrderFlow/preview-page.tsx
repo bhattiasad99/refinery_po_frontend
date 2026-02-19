@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 import {
-  PAYMENT_TERM_OPTIONS,
   type PurchaseOrderDraft,
 } from "./draft-api"
 import {
@@ -21,6 +20,7 @@ import {
   mapPurchaseOrderToStepOne,
   mapPurchaseOrderToStepThree,
   mapPurchaseOrderToStepTwo,
+  submitPurchaseOrder,
 } from "./purchase-order-client"
 import { StepShell } from "./step-shell"
 
@@ -107,9 +107,20 @@ export default function CreatePurchaseOrderPreview({
   }, [draftId])
 
   const onSubmit = async () => {
+    if (!draft || isSubmitting) {
+      return
+    }
+
     setIsSubmitting(true)
-    router.push("/purchase-orders")
-    router.refresh()
+    setErrorMessage(null)
+    try {
+      await submitPurchaseOrder(draft.id)
+      router.push("/purchase-orders")
+      router.refresh()
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to submit purchase order")
+      setIsSubmitting(false)
+    }
   }
 
   return (

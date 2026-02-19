@@ -52,8 +52,10 @@ function getSetCookieHeaders(response: Response): string[] {
 }
 
 export async function loginAction(_prevState: { error: string | null }, formData: FormData): Promise<LoginState> {
-  const email = String(formData.get("email") || "").trim()
-  const password = String(formData.get("password") || "")
+  const intent = String(formData.get("intent") || "")
+  const isBuyerDemoLogin = intent === "buyer-demo"
+  const email = isBuyerDemoLogin ? "dev@refinery.com" : String(formData.get("email") || "").trim()
+  const password = isBuyerDemoLogin ? "Dev@12345" : String(formData.get("password") || "")
   const continuePath = getSafeContinuePath(formData.get("continue"))
 
   if (!email || !password) {

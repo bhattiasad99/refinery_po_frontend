@@ -145,6 +145,13 @@ export async function getPurchaseOrder(purchaseOrderId: string): Promise<Purchas
   return parseResponse<PurchaseOrderApiResponse>(response, "Failed to fetch purchase order")
 }
 
+export async function submitPurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
+  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/submit`, {
+    method: "POST",
+  })
+  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to submit purchase order")
+}
+
 function resolvePaymentTermOption(purchaseOrder: PurchaseOrderApiResponse): PaymentTermOption {
   const paymentTermId = normalizeString(purchaseOrder.paymentTermId)
   const knownOption = PAYMENT_TERM_OPTIONS.find((option) => option.id === paymentTermId)

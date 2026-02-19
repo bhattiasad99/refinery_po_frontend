@@ -119,6 +119,9 @@ export default function CatalogPageComponent() {
         setErrorMessage("Failed to load catalog")
         setItems([])
       } finally {
+        if (signal?.aborted) {
+          return
+        }
         setIsLoading(false)
       }
     },
@@ -328,9 +331,13 @@ export default function CatalogPageComponent() {
           </div>
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <p className="text-muted-foreground text-sm">
-              Showing page {page} of {totalPages} ({total} total items)
-            </p>
+            {isInitialLoad ? (
+              <Skeleton className="h-4 w-64" />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Showing page {page} of {totalPages} ({total} total items)
+              </p>
+            )}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <Label htmlFor="catalog-rows-per-page" className="text-sm">Rows per page</Label>

@@ -79,6 +79,16 @@ const LoginForm = ({ continuePath = "/dashboard" }: LoginFormProps) => {
         {isPending ? "Signing in..." : "Sign in"}
         <ArrowRight className="size-4" />
       </button>
+
+      <button
+        type="submit"
+        name="intent"
+        value="buyer-demo"
+        className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-white/25 bg-white/5 px-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={isPending}
+      >
+        Sign in as a Buyer
+      </button>
     </form>
   )
 }
