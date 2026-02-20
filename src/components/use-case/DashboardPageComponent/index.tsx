@@ -1,107 +1,151 @@
+"use client"
 
-import { ChartAreaInteractive } from "./chart-area-interactive"
-import { DataTable, dashboardColumns } from "./data-table"
-import { data } from "./data"
-import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-react"
-import { Badge } from "@/components/ui/badge"
+import { useEffect, useMemo, useState } from "react"
+import { ChartAreaInteractive, type PurchaseOrdersPerDayPoint } from "./chart-area-interactive"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+
+type DashboardStats = {
+  totalPurchases: number
+  totalPurchaseOrders: number
+  totalItemsPurchased: number
+  purchaseOrdersThisMonth: number
+  purchaseOrdersPerDay: PurchaseOrdersPerDayPoint[]
+}
+
+const EMPTY_STATS: DashboardStats = {
+  totalPurchases: 0,
+  totalPurchaseOrders: 0,
+  totalItemsPurchased: 0,
+  purchaseOrdersThisMonth: 0,
+  purchaseOrdersPerDay: [],
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+function formatCount(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+async function loadDashboardStats(signal?: AbortSignal): Promise<DashboardStats> {
+  const response = await fetch("/api/purchase-orders/dashboard", {
+    cache: "no-store",
+    signal,
+  })
+
+  let payload: unknown = null
+  try {
+    payload = await response.json()
+  } catch {
+    payload = null
+  }
+
+  if (handleGatewayUnavailableLogout(response.status, payload)) {
+    throw new Error("Session ended because API gateway is unavailable.")
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to load dashboard data")
+  }
+
+  return payload as DashboardStats
+}
 
 export default function DashboardPageComponent() {
+  const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const hydrate = async () => {
+      setIsLoading(true)
+      try {
+        const nextStats = await loadDashboardStats(controller.signal)
+        if (!controller.signal.aborted) {
+          setStats(nextStats)
+        }
+      } catch (error) {
+        if ((error as Error).name === "AbortError") {
+          return
+        }
+        if (!controller.signal.aborted) {
+          setStats(EMPTY_STATS)
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void hydrate()
+
+    return () => controller.abort()
+  }, [])
+
+  const cards = useMemo(
+    () => [
+      {
+        label: "Total Purchases",
+        value: formatCurrency(stats.totalPurchases),
+      },
+      {
+        label: "Total Purchase Orders",
+        value: formatCount(stats.totalPurchaseOrders),
+      },
+      {
+        label: "Total Items Purchased",
+        value: formatCount(stats.totalItemsPurchased),
+      },
+      {
+        label: "Purchase Orders This Month",
+        value: formatCount(stats.purchaseOrdersThisMonth),
+      },
+    ],
+    [stats]
+  )
+
   return (
     <div className="flex flex-1 flex-col">
-      <div className="@container/main flex flex-1 flex-col gap-2">
-        <div className="flex flex-col gap-4 md:gap-6 ">
-          <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:shadow-xs  @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-            <Card className="@container/card">
-              <CardHeader>
-                <CardDescription>Total Revenue</CardDescription>
+      <div className="@container/main flex flex-1 flex-col gap-6">
+        <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+          {cards.map((card) => (
+            <Card key={card.label}>
+              <CardHeader className="pb-2">
+                <CardDescription>{card.label}</CardDescription>
                 <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                  $1,250.00
+                  {isLoading ? <Skeleton className="h-8 w-32" /> : card.value}
                 </CardTitle>
-                <CardAction>
-                  <Badge variant="outline">
-                    <IconTrendingUp />
-                    +12.5%
-                  </Badge>
-                </CardAction>
               </CardHeader>
-              <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                <div className="line-clamp-1 flex gap-2 font-medium">
-                  Trending up this month <IconTrendingUp className="size-4" />
-                </div>
-                <div className="text-muted-foreground">
-                  Visitors for the last 6 months
-                </div>
-              </CardFooter>
+              <CardContent />
             </Card>
-            <Card className="@container/card">
-              <CardHeader>
-                <CardDescription>New Customers</CardDescription>
-                <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                  1,234
-                </CardTitle>
-                <CardAction>
-                  <Badge variant="outline">
-                    <IconTrendingDown />
-                    -20%
-                  </Badge>
-                </CardAction>
-              </CardHeader>
-              <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                <div className="line-clamp-1 flex gap-2 font-medium">
-                  Down 20% this period <IconTrendingDown className="size-4" />
-                </div>
-                <div className="text-muted-foreground">
-                  Acquisition needs attention
-                </div>
-              </CardFooter>
-            </Card>
-            <Card className="@container/card">
-              <CardHeader>
-                <CardDescription>Active Accounts</CardDescription>
-                <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                  45,678
-                </CardTitle>
-                <CardAction>
-                  <Badge variant="outline">
-                    <IconTrendingUp />
-                    +12.5%
-                  </Badge>
-                </CardAction>
-              </CardHeader>
-              <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                <div className="line-clamp-1 flex gap-2 font-medium">
-                  Strong user retention <IconTrendingUp className="size-4" />
-                </div>
-                <div className="text-muted-foreground">Engagement exceed targets</div>
-              </CardFooter>
-            </Card>
-            <Card className="@container/card">
-              <CardHeader>
-                <CardDescription>Growth Rate</CardDescription>
-                <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                  4.5%
-                </CardTitle>
-                <CardAction>
-                  <Badge variant="outline">
-                    <IconTrendingUp />
-                    +4.5%
-                  </Badge>
-                </CardAction>
-              </CardHeader>
-              <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                <div className="line-clamp-1 flex gap-2 font-medium">
-                  Steady performance increase <IconTrendingUp className="size-4" />
-                </div>
-                <div className="text-muted-foreground">Meets growth projections</div>
-              </CardFooter>
-            </Card>
-          </div>
-          <div>
-            <ChartAreaInteractive />
-          </div>
-          <DataTable data={data} columns={dashboardColumns} />
+          ))}
         </div>
+
+        {isLoading ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Purchase Orders Per Day</CardTitle>
+              <CardDescription>Number of purchase orders by day</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[280px] w-full" />
+            </CardContent>
+          </Card>
+        ) : (
+          <ChartAreaInteractive data={stats.purchaseOrdersPerDay} />
+        )}
       </div>
     </div>
   )
