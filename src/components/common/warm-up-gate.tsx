@@ -53,6 +53,14 @@ const EXPECTED_SERVICE_NAMES = [
   "departments",
   "users",
 ] as const
+const MANUAL_START_URLS: Record<(typeof EXPECTED_SERVICE_NAMES)[number], string> = {
+  "api-gateway": "https://refinery-po-backend-api-gateway.onrender.com",
+  "event-bus": "https://refinery-po-backend-event-bus.onrender.com",
+  catalog: "https://refinery-po-backend.onrender.com",
+  "purchase-orders": "https://refinery-po-backend-purchase-order.onrender.com",
+  departments: "https://refinery-po-backend-departments.onrender.com",
+  users: "https://refinery-po-backend-users.onrender.com",
+}
 
 function readJson<T>(payload: string): T | null {
   try {
@@ -113,6 +121,13 @@ function resolveStartErrorMessage(body: unknown): string {
     return (body as { message: string }).message
   }
   return "Warm-up service is temporarily unavailable."
+}
+
+function resolveManualStartUrl(serviceName: string): string | null {
+  if (serviceName in MANUAL_START_URLS) {
+    return MANUAL_START_URLS[serviceName as keyof typeof MANUAL_START_URLS]
+  }
+  return null
 }
 
 export function WarmUpGate({ children }: { children: React.ReactNode }) {
@@ -375,7 +390,7 @@ export function WarmUpGate({ children }: { children: React.ReactNode }) {
       {children}
       {active ? (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background/90 backdrop-blur-sm">
-          <div className="w-[min(90vw,680px)] rounded-2xl border border-border bg-card p-6 shadow-2xl">
+          <div className="max-h-[90vh] w-[min(90vw,680px)] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold">Warming services</h2>
@@ -392,6 +407,14 @@ export function WarmUpGate({ children }: { children: React.ReactNode }) {
               <div className="size-10 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
             </div>
 
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm text-amber-900">
+              <p className="font-semibold">Important: Startup can take several minutes on cold servers.</p>
+              <p>
+                You can speed this up by clicking <span className="font-semibold">Start manually</span> on each service
+                below.
+              </p>
+            </div>
+
             <div className="mb-4">
               <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
                 <span>Startup progress</span>
@@ -406,7 +429,9 @@ export function WarmUpGate({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="space-y-2">
-              {visibleServices.map((service) => (
+              {visibleServices.map((service) => {
+                const manualStartUrl = resolveManualStartUrl(service.serviceName)
+                return (
                 <div
                   key={service.serviceName}
                   className="flex items-center justify-between gap-4 rounded-lg border border-border/70 bg-background/60 px-3 py-2"
@@ -418,6 +443,16 @@ export function WarmUpGate({ children }: { children: React.ReactNode }) {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{service.serviceName}</p>
                       <p className="truncate text-xs text-muted-foreground">{service.message}</p>
+                      {manualStartUrl ? (
+                        <a
+                          href={manualStartUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary underline underline-offset-2"
+                        >
+                          Start manually
+                        </a>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -429,7 +464,8 @@ export function WarmUpGate({ children }: { children: React.ReactNode }) {
                     </span>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             {errorMessage ? (
