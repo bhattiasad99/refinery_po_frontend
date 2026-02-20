@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { ItemSelectionModal, isCatalogItemSupplierCompatible } from "./item-selection-modal"
+import {
+  ItemSelectionModal,
+  isCatalogItemSupplierCompatible,
+  isValidLineItemQuantity,
+} from "@/components/use-case/CreatePurchaseOrderFlow/item-selection-modal"
 
 describe("ItemSelectionModal supplier constraints", () => {
   it("shows mismatch guidance when supplier is locked", async () => {
@@ -42,5 +46,13 @@ describe("ItemSelectionModal supplier constraints", () => {
     expect(isCatalogItemSupplierCompatible("Supplier A", "Supplier A")).toBe(true)
     expect(isCatalogItemSupplierCompatible("Supplier B", "Supplier A")).toBe(false)
     expect(isCatalogItemSupplierCompatible("Supplier B", "Supplier A", "b1", "b1")).toBe(true)
+  })
+
+  it("validates quantity as positive number", () => {
+    expect(isValidLineItemQuantity("1")).toBe(true)
+    expect(isValidLineItemQuantity("3")).toBe(true)
+    expect(isValidLineItemQuantity("0")).toBe(false)
+    expect(isValidLineItemQuantity("-4")).toBe(false)
+    expect(isValidLineItemQuantity("abc")).toBe(false)
   })
 })

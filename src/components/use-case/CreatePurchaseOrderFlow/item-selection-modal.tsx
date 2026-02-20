@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { type PurchaseOrderLineItem } from "./draft-api"
+import { type PurchaseOrderLineItem } from "@/components/use-case/CreatePurchaseOrderFlow/draft-api"
 
 type CatalogItem = {
   id: string
@@ -67,6 +67,11 @@ export function isCatalogItemSupplierCompatible(
   return catalogSupplier === lockedSupplierName
 }
 
+export function isValidLineItemQuantity(quantity: string): boolean {
+  const parsedQuantity = Number(quantity)
+  return Number.isFinite(parsedQuantity) && parsedQuantity > 0
+}
+
 export function ItemSelectionModal({
   open,
   onOpenChange,
@@ -88,7 +93,7 @@ export function ItemSelectionModal({
   const hasLockedSupplier = Boolean(lockedSupplierName)
 
   const parsedQuantity = Number(quantity)
-  const validQuantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0
+  const validQuantity = isValidLineItemQuantity(quantity)
   const totalPrice = selectedCatalogItem ? selectedCatalogItem.priceUsd * (validQuantity ? parsedQuantity : 0) : 0
   const hasCatalogItems = catalogItems.length > 0
   const canSave = Boolean(selectedCatalogItem) && validQuantity

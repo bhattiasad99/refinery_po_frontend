@@ -17,7 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { NavMain } from "../NavbarComponent/nav-main"
+import { NavMain } from "@/components/use-case/NavbarComponent/nav-main"
 import LinkComponent from "@/components/common/LinkComponent"
 
 const data = {

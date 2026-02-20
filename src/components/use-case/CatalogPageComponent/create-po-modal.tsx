@@ -10,7 +10,7 @@ import SearchableDropdown, {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+import { apiGet } from "@/lib/api"
 import { buildStepOnePayload, createPurchaseOrder } from "@/components/use-case/CreatePurchaseOrderFlow/purchase-order-client"
 
 export type CatalogRowForQuickPo = {
@@ -76,66 +76,30 @@ export function CreatePoFromCatalogModal({
 
       try {
         const [departmentsResponse, usersResponse] = await Promise.all([
-          fetch("/api/departments", {
-            method: "GET",
+          apiGet<DepartmentApiItem[]>("/api/departments", {
             cache: "no-store",
             signal: controller.signal,
+            fallbackErrorMessage: "Failed to fetch departments",
           }),
-          fetch("/api/users?limit=200", {
-            method: "GET",
+          apiGet<UserApiItem[]>("/api/users?limit=200", {
             cache: "no-store",
             signal: controller.signal,
+            fallbackErrorMessage: "Failed to fetch users",
           }),
         ])
-
-        const departmentsPayload = (await departmentsResponse.json()) as
-          | DepartmentApiItem[]
-          | { message?: string }
-        const usersPayload = (await usersResponse.json()) as
-          | UserApiItem[]
-          | { message?: string }
-
-        if (handleGatewayUnavailableLogout(departmentsResponse.status, departmentsPayload)) {
-          return
-        }
-        if (handleGatewayUnavailableLogout(usersResponse.status, usersPayload)) {
-          return
-        }
-
-        if (!departmentsResponse.ok) {
-          const message =
-            departmentsPayload &&
-            typeof departmentsPayload === "object" &&
-            "message" in departmentsPayload &&
-            typeof departmentsPayload.message === "string"
-              ? departmentsPayload.message
-              : "Failed to fetch departments"
-          throw new Error(message)
-        }
-
-        if (!usersResponse.ok) {
-          const message =
-            usersPayload &&
-            typeof usersPayload === "object" &&
-            "message" in usersPayload &&
-            typeof usersPayload.message === "string"
-              ? usersPayload.message
-              : "Failed to fetch users"
-          throw new Error(message)
-        }
 
         if (!isMounted) {
           return
         }
 
-        const nextDepartments = (Array.isArray(departmentsPayload) ? departmentsPayload : [])
+        const nextDepartments = (Array.isArray(departmentsResponse) ? departmentsResponse : [])
           .map((department) => ({
             id: normalizeString(department.id),
             name: normalizeString(department.name),
           }))
           .filter((department) => department.id.length > 0 && department.name.length > 0)
 
-        const nextUsers = (Array.isArray(usersPayload) ? usersPayload : [])
+        const nextUsers = (Array.isArray(usersResponse) ? usersResponse : [])
           .map((user) => ({
             id: normalizeString(user.id),
             email: normalizeString(user.email),

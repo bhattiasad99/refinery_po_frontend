@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { FocusEvent, useEffect, useMemo, useState } from "react"
+import { FocusEvent, useEffect, useMemo, useReducer, useState } from "react"
 import { toast } from "sonner"
 
 import ControlledModal from "@/components/common/ControlledModal"
@@ -29,6 +29,10 @@ import {
 import { ItemSelectionModal } from "@/components/use-case/CreatePurchaseOrderFlow/item-selection-modal"
 import { StepTwoItemsTable } from "@/components/use-case/CreatePurchaseOrderFlow/step-two-items-table"
 import { useCreatePurchaseOrderReferenceData } from "@/components/use-case/CreatePurchaseOrderFlow/reference-data-context"
+import {
+  createInitialStepTwoState,
+  stepTwoStateReducer,
+} from "@/components/use-case/CreatePurchaseOrderFlow/step-two-state"
 import {
   PAYMENT_TERM_OPTIONS,
   type PaymentMilestone,
@@ -228,7 +232,11 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
   const [isStepThreeModalOpen, setIsStepThreeModalOpen] = useState(false)
 
   const [stepOneDraft, setStepOneDraft] = useState<StepOneData>(baseOrder.step1)
-  const [stepTwoDraft, setStepTwoDraft] = useState<StepTwoData>(baseOrder.step2)
+  const [stepTwoState, dispatchStepTwo] = useReducer(
+    stepTwoStateReducer,
+    createInitialStepTwoState(baseOrder.step2)
+  )
+  const stepTwoDraft = stepTwoState.values
   const [stepThreeDraft, setStepThreeDraft] = useState<StepThreeData>(baseOrder.step3)
 
   const [isItemModalOpen, setIsItemModalOpen] = useState(false)
@@ -286,7 +294,7 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
         setBaseOrder(mappedOrder)
         setPendingChanges({})
         setStepOneDraft(cloneValue(mappedOrder.step1))
-        setStepTwoDraft(cloneValue(mappedOrder.step2))
+        dispatchStepTwo({ type: "set_values", payload: cloneValue(mappedOrder.step2) })
         setStepThreeDraft(cloneValue(mappedOrder.step3))
       } catch (error) {
         if (!isActive) {
@@ -294,6 +302,7 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
         }
         setBaseOrder(createEmptyEditablePurchaseOrder(id))
         setPendingChanges({})
+        dispatchStepTwo({ type: "set_values", payload: createEmptyEditablePurchaseOrder(id).step2 })
         setLoadErrorMessage(error instanceof Error ? error.message : "Failed to load purchase order")
       } finally {
         if (isActive) {
@@ -315,7 +324,7 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
   }
 
   const openStepTwoModal = () => {
-    setStepTwoDraft(displayOrder.step2)
+    dispatchStepTwo({ type: "set_values", payload: displayOrder.step2 })
     setEditingItem(null)
     setIsStepTwoModalOpen(true)
   }
@@ -387,7 +396,7 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
       setBaseOrder(mappedOrder)
       setPendingChanges({})
       setStepOneDraft(cloneValue(mappedOrder.step1))
-      setStepTwoDraft(cloneValue(mappedOrder.step2))
+      dispatchStepTwo({ type: "set_values", payload: cloneValue(mappedOrder.step2) })
       setStepThreeDraft(cloneValue(mappedOrder.step3))
       toast.success("Changes saved")
       router.push(`/purchase-orders/${displayOrder.id}`)
@@ -402,14 +411,6 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
     setPendingChanges({})
     toast.info("Pending changes discarded")
   }
-
-  const filteredCatalogItems = useMemo(() => {
-    const allCatalogItems = referenceData.catalogItems
-    if (!stepTwoDraft.supplierName) return allCatalogItems
-
-    const supplierItems = referenceData.catalogBySupplier[stepTwoDraft.supplierName] ?? []
-    return supplierItems.length > 0 ? supplierItems : allCatalogItems
-  }, [referenceData.catalogBySupplier, referenceData.catalogItems, stepTwoDraft.supplierName])
 
   const departmentOptions: SearchableDropdownOption[] = useMemo(
     () =>
@@ -448,47 +449,45 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
   ])
 
   const selectableCatalogItems = useMemo(
-    () =>
-      filteredCatalogItems.filter((catalogItem) => {
+    () => {
+      const allCatalogItems = referenceData.catalogItems
+      const supplierScopedCatalogItems = stepTwoDraft.supplierName
+        ? referenceData.catalogBySupplier[stepTwoDraft.supplierName] ?? allCatalogItems
+        : allCatalogItems
+      const catalogItems = supplierScopedCatalogItems.length > 0 ? supplierScopedCatalogItems : allCatalogItems
+
+      return catalogItems.filter((catalogItem) => {
         if (editingItem?.catalogItemId === catalogItem.id) return true
         return !stepTwoDraft.items.some((lineItem) => lineItem.catalogItemId === catalogItem.id)
-      }),
-    [editingItem?.catalogItemId, filteredCatalogItems, stepTwoDraft.items]
+      })
+    },
+    [
+      editingItem?.catalogItemId,
+      referenceData.catalogBySupplier,
+      referenceData.catalogItems,
+      stepTwoDraft.items,
+      stepTwoDraft.supplierName,
+    ]
   )
 
   const onSaveItem = (lineItem: PurchaseOrderLineItem) => {
-    setStepTwoDraft((previous) => {
-      if (previous.supplierName && previous.supplierName !== lineItem.supplier) return previous
-      const inferredSupplierName = previous.supplierName || lineItem.supplier
-      const existingItemIndex = previous.items.findIndex((existingItem) => existingItem.id === lineItem.id)
-      if (existingItemIndex >= 0) {
-        const updatedItems = [...previous.items]
-        updatedItems[existingItemIndex] = lineItem
-        return {
-          supplierName: inferredSupplierName,
-          items: updatedItems,
-        }
-      }
-      return {
-        supplierName: inferredSupplierName,
-        items: [...previous.items, lineItem],
-      }
-    })
+    dispatchStepTwo({ type: "save_item", payload: lineItem })
   }
 
   const onDeleteItem = (lineItemId: string) => {
-    setStepTwoDraft((previous) => {
-      const updatedItems = previous.items.filter((lineItem) => lineItem.id !== lineItemId)
-      return {
-        supplierName: updatedItems.length > 0 ? previous.supplierName : "",
-        items: updatedItems,
-      }
-    })
+    dispatchStepTwo({ type: "delete_item", payload: { lineItemId } })
   }
 
   const onEditItem = (lineItem: PurchaseOrderLineItem) => {
     setEditingItem(lineItem)
     setIsItemModalOpen(true)
+  }
+
+  const onReorderItems = (sourceIndex: number, destinationIndex: number) => {
+    dispatchStepTwo({
+      type: "reorder_items",
+      payload: { sourceIndex, destinationIndex },
+    })
   }
 
   const onAddMilestone = () => {
@@ -841,12 +840,21 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
           </div>
 
           {stepTwoDraft.items.length > 0 ? (
-            <StepTwoItemsTable items={stepTwoDraft.items} onEditItem={onEditItem} onDeleteItem={onDeleteItem} />
+            <StepTwoItemsTable
+              items={stepTwoDraft.items}
+              onEditItem={onEditItem}
+              onDeleteItem={onDeleteItem}
+              onReorderItems={onReorderItems}
+            />
           ) : (
             <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
               Add items to populate table
             </p>
           )}
+
+          {stepTwoState.supplierWarning ? (
+            <p className="text-sm font-medium text-amber-700">{stepTwoState.supplierWarning}</p>
+          ) : null}
 
           <div className="flex items-center justify-end gap-3">
             <Button variant="outline" onClick={() => setIsStepTwoModalOpen(false)}>
@@ -1089,6 +1097,7 @@ export default function EditPurchaseOrderPageComponent({ id }: EditPurchaseOrder
           open={isItemModalOpen}
           onOpenChange={setIsItemModalOpen}
           catalogItems={selectableCatalogItems}
+          lockedSupplierName={stepTwoDraft.supplierName}
           initialLineItem={editingItem}
           onSave={onSaveItem}
         />

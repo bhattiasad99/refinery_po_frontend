@@ -11,6 +11,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 
 import {
   type PurchaseOrderDraft,
@@ -22,6 +23,7 @@ import {
   mapPurchaseOrderToStepTwo,
   submitPurchaseOrder,
 } from "./purchase-order-client"
+import { enqueueOptimisticKanbanUpdate } from "@/components/use-case/PurchaseOrdersPageComponent/optimistic-updates"
 import { StepShell } from "./step-shell"
 
 type CreatePurchaseOrderPreviewProps = {
@@ -49,6 +51,53 @@ function ReviewField({
   )
 }
 
+function PreviewSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border-slate-200/80">
+          <CardHeader className="pb-2">
+            <Skeleton className="h-5 w-36" />
+          </CardHeader>
+          <CardContent className="grid gap-2 pt-0">
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80">
+          <CardHeader className="pb-2">
+            <Skeleton className="h-5 w-24" />
+          </CardHeader>
+          <CardContent className="grid gap-2 pt-0">
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-48 w-full rounded-md" />
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 md:col-span-2">
+          <CardHeader className="pb-2">
+            <Skeleton className="h-5 w-36" />
+          </CardHeader>
+          <CardContent className="grid gap-2 pt-0 md:grid-cols-2">
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+          </CardContent>
+        </Card>
+      </div>
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-56" />
+      </div>
+    </div>
+  )
+}
+
 export default function CreatePurchaseOrderPreview({
   draftId,
 }: CreatePurchaseOrderPreviewProps) {
@@ -58,8 +107,11 @@ export default function CreatePurchaseOrderPreview({
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const purchaseOrderTotal =
+  const itemSubtotal =
     draft?.step2.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) ?? 0
+  const taxAmount = 0
+  const discountAmount = 0
+  const calculatedTotal = itemSubtotal + taxAmount - discountAmount
 
   useEffect(() => {
     let isMounted = true
@@ -114,8 +166,22 @@ export default function CreatePurchaseOrderPreview({
     setIsSubmitting(true)
     setErrorMessage(null)
     try {
-      await submitPurchaseOrder(draft.id)
-      router.push("/purchase-orders")
+      const submittedPurchaseOrder = await submitPurchaseOrder(draft.id)
+      enqueueOptimisticKanbanUpdate({
+        id: submittedPurchaseOrder.id,
+        poNumber: submittedPurchaseOrder.poNumber,
+        status: submittedPurchaseOrder.status,
+        supplierName: submittedPurchaseOrder.supplierName ?? draft.step2.supplierName,
+        requestedByUser: submittedPurchaseOrder.requestedByUser ?? draft.step1.requestedByUser,
+        numberOfItems: submittedPurchaseOrder.lineItems?.length ?? draft.step2.items.length,
+        totalPrice:
+          submittedPurchaseOrder.lineItems?.reduce(
+            (sum, item) => sum + (item.quantity ?? 0) * (item.unitPrice ?? 0),
+            0
+          ) ?? itemSubtotal,
+      })
+      const detailSegment = submittedPurchaseOrder.poNumber?.trim() || submittedPurchaseOrder.id
+      router.push(`/purchase-orders/${encodeURIComponent(detailSegment)}`)
       router.refresh()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to submit purchase order")
@@ -129,7 +195,7 @@ export default function CreatePurchaseOrderPreview({
       description="Review all draft sections before final submission."
     >
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading review...</p>
+        <PreviewSkeleton />
       ) : (
         <div className="space-y-5">
           {draft && (
@@ -137,10 +203,21 @@ export default function CreatePurchaseOrderPreview({
               <div className="grid gap-4 md:grid-cols-2">
                 <Card className="border-slate-200/80">
                   <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <UserRound className="size-4 text-slate-600" />
-                      Basic Info
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <UserRound className="size-4 text-slate-600" />
+                        Basic Info
+                      </CardTitle>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto px-0 text-xs"
+                        disabled={isSubmitting}
+                        onClick={() => router.push(`/purchase-orders/new?draftId=${encodeURIComponent(draftId)}`)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="grid gap-2 pt-0">
                     <ReviewField label="Requested By (Department)" value={draft.step1.requestedByDepartment} />
@@ -152,10 +229,21 @@ export default function CreatePurchaseOrderPreview({
 
                 <Card className="border-slate-200/80">
                   <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <ListChecks className="size-4 text-slate-600" />
-                      Items
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <ListChecks className="size-4 text-slate-600" />
+                        Items
+                      </CardTitle>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto px-0 text-xs"
+                        disabled={isSubmitting}
+                        onClick={() => router.push(`/purchase-orders/new/step-2/${encodeURIComponent(draftId)}`)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="grid gap-2 pt-0">
                     <ReviewField
@@ -179,12 +267,27 @@ export default function CreatePurchaseOrderPreview({
                         </div>
                       ))}
                       <div className="rounded-md border border-slate-300 bg-slate-50 p-3">
-                        <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">
-                          Purchase Order Total
-                        </p>
-                        <p className="mt-1 text-base font-bold text-slate-900">
-                          {currencyFormatter.format(purchaseOrderTotal)}
-                        </p>
+                        <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">Totals</p>
+                        <div className="mt-2 space-y-1 text-sm text-slate-700">
+                          <div className="flex items-center justify-between">
+                            <span>Item Subtotal</span>
+                            <span className="font-medium">{currencyFormatter.format(itemSubtotal)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Tax {draft.step3.taxIncluded ? "(included)" : "(not specified)"}</span>
+                            <span className="font-medium">{currencyFormatter.format(taxAmount)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Discount (none)</span>
+                            <span className="font-medium">-{currencyFormatter.format(discountAmount)}</span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between border-t border-slate-300 pt-2">
+                            <span className="font-semibold text-slate-900">Calculated Total</span>
+                            <span className="text-base font-bold text-slate-900">
+                              {currencyFormatter.format(calculatedTotal)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -192,10 +295,21 @@ export default function CreatePurchaseOrderPreview({
 
                 <Card className="border-slate-200/80 md:col-span-2">
                   <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <CreditCard className="size-4 text-slate-600" />
-                      Payment Terms
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <CreditCard className="size-4 text-slate-600" />
+                        Payment Terms
+                      </CardTitle>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto px-0 text-xs"
+                        disabled={isSubmitting}
+                        onClick={() => router.push(`/purchase-orders/new/step-3/${encodeURIComponent(draftId)}`)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="grid gap-2 pt-0 md:grid-cols-2">
                     <ReviewField label="Payment Type" value={draft.step3.paymentTerm.label} />

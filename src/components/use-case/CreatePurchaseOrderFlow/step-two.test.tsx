@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import CreatePurchaseOrderStepTwo from "./step-two"
+import CreatePurchaseOrderStepTwo from "@/components/use-case/CreatePurchaseOrderFlow/step-two"
 
 const mocks = vi.hoisted(() => {
   class MockApiError extends Error {
@@ -31,15 +31,18 @@ vi.mock("next/navigation", () => ({
   }),
 }))
 
-vi.mock("./purchase-order-client", () => ({
+vi.mock("@/lib/api", () => ({
   ApiError: mocks.MockApiError,
+}))
+
+vi.mock("@/components/use-case/CreatePurchaseOrderFlow/purchase-order-client", () => ({
   getPurchaseOrder: mocks.getPurchaseOrderMock,
   mapPurchaseOrderToStepTwo: mocks.mapPurchaseOrderToStepTwoMock,
   buildStepTwoPayload: mocks.buildStepTwoPayloadMock,
   updatePurchaseOrder: mocks.updatePurchaseOrderMock,
 }))
 
-vi.mock("./reference-data-context", () => ({
+vi.mock("@/components/use-case/CreatePurchaseOrderFlow/reference-data-context", () => ({
   useCreatePurchaseOrderReferenceData: () => ({
     catalogItems: [],
     errorMessage: null,

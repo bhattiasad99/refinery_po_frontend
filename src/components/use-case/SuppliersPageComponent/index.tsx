@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+import { ApiError, apiGet } from "@/lib/api"
 import { InternalHero, InternalPageTemplate } from "@/components/templates/internal-page-template"
 
 type SupplierCatalogItem = {
@@ -100,29 +100,22 @@ export default function SuppliersPageComponent() {
           params.set("search", search.trim())
         }
 
-        const response = await fetch(`/api/suppliers?${params.toString()}`, {
-          method: "GET",
+        const suppliersPayload = await apiGet<SuppliersListResponse>(`/api/suppliers?${params.toString()}`, {
           cache: "no-store",
           signal,
+          fallbackErrorMessage: "Failed to load suppliers",
         })
 
-        const payload = (await response.json()) as SuppliersListResponse | { message?: string }
-        if (handleGatewayUnavailableLogout(response.status, payload)) {
-          return
-        }
-        if (!response.ok) {
-          const errorPayload = payload as { message?: string }
-          setErrorMessage(errorPayload.message ?? "Failed to load suppliers")
-          setSuppliers([])
-          return
-        }
-
-        const suppliersPayload = payload as SuppliersListResponse
         setSuppliers(Array.isArray(suppliersPayload.data) ? suppliersPayload.data : [])
         setTotal(Number.isFinite(suppliersPayload.total) ? suppliersPayload.total : 0)
         setHasLoadedOnce(true)
       } catch (error) {
         if ((error as Error).name === "AbortError") {
+          return
+        }
+        if (error instanceof ApiError) {
+          setErrorMessage(error.message)
+          setSuppliers([])
           return
         }
         setErrorMessage("Failed to load suppliers")

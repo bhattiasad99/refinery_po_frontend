@@ -1,23 +1,27 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useReducer, useState } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { type PurchaseOrderLineItem, type StepTwoData } from "./draft-api"
-import { ItemSelectionModal } from "./item-selection-modal"
+import { ApiError } from "@/lib/api"
+import { type PurchaseOrderLineItem, type StepTwoData } from "@/components/use-case/CreatePurchaseOrderFlow/draft-api"
+import { ItemSelectionModal } from "@/components/use-case/CreatePurchaseOrderFlow/item-selection-modal"
 import {
-  ApiError,
   buildStepTwoPayload,
   getPurchaseOrder,
   mapPurchaseOrderToStepTwo,
   updatePurchaseOrder,
-} from "./purchase-order-client"
-import { useCreatePurchaseOrderReferenceData } from "./reference-data-context"
+} from "@/components/use-case/CreatePurchaseOrderFlow/purchase-order-client"
+import { useCreatePurchaseOrderReferenceData } from "@/components/use-case/CreatePurchaseOrderFlow/reference-data-context"
+import {
+  createInitialStepTwoState,
+  stepTwoStateReducer,
+  SUPPLIER_MISMATCH_MESSAGE,
+} from "@/components/use-case/CreatePurchaseOrderFlow/step-two-state"
 
-import { StepShell } from "./step-shell"
-import { StepTwoItemsTable } from "./step-two-items-table"
+import { StepShell } from "@/components/use-case/CreatePurchaseOrderFlow/step-shell"
+import { StepTwoItemsTable } from "@/components/use-case/CreatePurchaseOrderFlow/step-two-items-table"
 
 type CreatePurchaseOrderStepTwoProps = {
   draftId: string
@@ -27,7 +31,6 @@ const emptyStepTwoData = (): StepTwoData => ({
   supplierName: "",
   items: [],
 })
-const SUPPLIER_MISMATCH_MESSAGE = "All items in a PO must come from the same supplier"
 
 export default function CreatePurchaseOrderStepTwo({
   draftId,
@@ -35,7 +38,10 @@ export default function CreatePurchaseOrderStepTwo({
   const router = useRouter()
   const referenceData = useCreatePurchaseOrderReferenceData()
 
-  const [values, setValues] = useState<StepTwoData>(emptyStepTwoData())
+  const [stepTwoState, dispatchStepTwo] = useReducer(
+    stepTwoStateReducer,
+    createInitialStepTwoState()
+  )
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isItemModalOpen, setIsItemModalOpen] = useState(false)
@@ -53,10 +59,10 @@ export default function CreatePurchaseOrderStepTwo({
         const purchaseOrder = await getPurchaseOrder(draftId)
         const stepTwo = mapPurchaseOrderToStepTwo(purchaseOrder)
         if (!isMounted) return
-        setValues(stepTwo)
+        dispatchStepTwo({ type: "set_values", payload: stepTwo })
       } catch (error) {
         if (!isMounted) return
-        setValues(emptyStepTwoData())
+        dispatchStepTwo({ type: "set_values", payload: emptyStepTwoData() })
         setErrorMessage(error instanceof Error ? error.message : "Failed to load step 2")
       } finally {
         if (isMounted) {
@@ -71,6 +77,7 @@ export default function CreatePurchaseOrderStepTwo({
     }
   }, [draftId])
 
+  const values = stepTwoState.values
   const hasItems = useMemo(() => values.items.length > 0, [values.items])
 
   const onBack = () => {
@@ -82,6 +89,7 @@ export default function CreatePurchaseOrderStepTwo({
       return
     }
 
+    dispatchStepTwo({ type: "clear_warning" })
     setIsSubmitting(true)
     setErrorMessage(null)
 
@@ -104,57 +112,24 @@ export default function CreatePurchaseOrderStepTwo({
   }
 
   const onSaveItem = (lineItem: PurchaseOrderLineItem) => {
-    let hasSupplierMismatch = false
-
-    setValues((previous) => {
-      if (previous.supplierName && previous.supplierName !== lineItem.supplier) {
-        hasSupplierMismatch = true
-        return previous
-      }
-
-      const inferredSupplierName = previous.supplierName || lineItem.supplier
-
-      const existingItemIndex = previous.items.findIndex(
-        (existingItem) => existingItem.id === lineItem.id
-      )
-      if (existingItemIndex >= 0) {
-        const updatedItems = [...previous.items]
-        updatedItems[existingItemIndex] = lineItem
-
-        return {
-          supplierName: inferredSupplierName,
-          items: updatedItems,
-        }
-      }
-
-      return {
-        supplierName: inferredSupplierName,
-        items: [...previous.items, lineItem],
-      }
-    })
-
-    if (hasSupplierMismatch) {
-      setErrorMessage(SUPPLIER_MISMATCH_MESSAGE)
-      toast.error(SUPPLIER_MISMATCH_MESSAGE)
-      return
-    }
-
+    dispatchStepTwo({ type: "save_item", payload: lineItem })
     setErrorMessage(null)
   }
 
   const onDeleteItem = (lineItemId: string) => {
-    setValues((previous) => {
-      const updatedItems = previous.items.filter((lineItem) => lineItem.id !== lineItemId)
-      return {
-        supplierName: updatedItems.length > 0 ? previous.supplierName : "",
-        items: updatedItems,
-      }
-    })
+    dispatchStepTwo({ type: "delete_item", payload: { lineItemId } })
   }
 
   const onEditItem = (lineItem: PurchaseOrderLineItem) => {
     setEditingItem(lineItem)
     setIsItemModalOpen(true)
+  }
+
+  const onReorderItems = (sourceIndex: number, destinationIndex: number) => {
+    dispatchStepTwo({
+      type: "reorder_items",
+      payload: { sourceIndex, destinationIndex },
+    })
   }
 
   const supplierDisplayText = values.supplierName || "No Supplier Added, please add items"
@@ -200,6 +175,7 @@ export default function CreatePurchaseOrderStepTwo({
             items={values.items}
             onEditItem={onEditItem}
             onDeleteItem={onDeleteItem}
+            onReorderItems={onReorderItems}
           />
         ) : (
           <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
@@ -216,6 +192,9 @@ export default function CreatePurchaseOrderStepTwo({
           </Button>
         </div>
 
+        {stepTwoState.supplierWarning ? (
+          <p className="text-sm font-medium text-amber-700">{stepTwoState.supplierWarning}</p>
+        ) : null}
         {errorMessage ? <p className="text-sm font-medium text-red-600">{errorMessage}</p> : null}
         {referenceData.errorMessage ? (
           <p className="text-sm font-medium text-red-600">{referenceData.errorMessage}</p>

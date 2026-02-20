@@ -43,7 +43,10 @@ export default function ControlledModal({
                   </Dialog.Description>
                 ) : null}
               </div>
-              <Dialog.Close className="text-muted-foreground hover:text-foreground rounded-md p-1">
+              <Dialog.Close
+                className="text-muted-foreground hover:text-foreground rounded-md p-1"
+                aria-label="Close dialog"
+              >
                 <X className="size-4" />
               </Dialog.Close>
             </div>

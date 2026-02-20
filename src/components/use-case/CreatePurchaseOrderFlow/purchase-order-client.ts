@@ -1,5 +1,6 @@
 "use client"
 
+import { apiGet, apiPost, apiPut } from "@/lib/api"
 import {
   PAYMENT_TERM_OPTIONS,
   type PaymentMilestone,
@@ -8,8 +9,7 @@ import {
   type StepOneData,
   type StepThreeData,
   type StepTwoData,
-} from "./draft-api"
-import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+} from "@/components/use-case/CreatePurchaseOrderFlow/draft-api"
 
 type PurchaseOrderLineItemApi = {
   id: string
@@ -105,18 +105,6 @@ type PurchaseOrderWritePayload = {
   } | null
 }
 
-export class ApiError extends Error {
-  status: number
-  body: unknown
-
-  constructor(message: string, status: number, body: unknown) {
-    super(message)
-    this.name = "ApiError"
-    this.status = status
-    this.body = body
-  }
-}
-
 function normalizeString(value: string | null | undefined): string {
   return typeof value === "string" ? value : ""
 }
@@ -125,42 +113,17 @@ function normalizeNumber(value: number | null | undefined, fallback = 0): number
   return typeof value === "number" && Number.isFinite(value) ? value : fallback
 }
 
-async function parseResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
-  let body: unknown
-  try {
-    body = await response.json()
-  } catch {
-    body = null
-  }
-
-  if (handleGatewayUnavailableLogout(response.status, body)) {
-    throw new Error("Session ended because API gateway is unavailable.")
-  }
-
-  if (!response.ok) {
-    const message =
-      body && typeof body === "object" && "message" in body && typeof body.message === "string"
-        ? body.message
-        : fallbackMessage
-    throw new ApiError(message, response.status, body)
-  }
-
-  return body as T
-}
-
 export async function createPurchaseOrder(
   payload: PurchaseOrderWritePayload,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
-  const response = await fetch("/api/purchase-orders", {
-    method: "POST",
+  return apiPost<PurchaseOrderApiResponse>("/api/purchase-orders", {
+    body: payload,
+    fallbackErrorMessage: "Failed to create purchase order",
     headers: {
-      "Content-Type": "application/json",
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
-    body: JSON.stringify(payload),
   })
-  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to create purchase order")
 }
 
 export async function updatePurchaseOrder(
@@ -168,64 +131,59 @@ export async function updatePurchaseOrder(
   payload: PurchaseOrderWritePayload,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
-  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}`, {
-    method: "PUT",
+  return apiPut<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}`, {
+    body: payload,
+    fallbackErrorMessage: "Failed to update purchase order",
     headers: {
-      "Content-Type": "application/json",
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
-    body: JSON.stringify(payload),
   })
-  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to update purchase order")
 }
 
 export async function getPurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
-  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}`)
-  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to fetch purchase order")
+  return apiGet<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}`, {
+    fallbackErrorMessage: "Failed to fetch purchase order",
+  })
 }
 
 export async function submitPurchaseOrder(
   purchaseOrderId: string,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
-  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/submit`, {
-    method: "POST",
+  return apiPost<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/submit`, {
+    fallbackErrorMessage: "Failed to submit purchase order",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   })
-  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to submit purchase order")
 }
 
 export async function approvePurchaseOrder(
   purchaseOrderId: string,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
-  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/approve`, {
-    method: "POST",
+  return apiPost<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/approve`, {
+    fallbackErrorMessage: "Failed to approve purchase order",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   })
-  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to approve purchase order")
 }
 
 export async function rejectPurchaseOrder(
   purchaseOrderId: string,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
-  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/reject`, {
-    method: "POST",
+  return apiPost<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/reject`, {
+    fallbackErrorMessage: "Failed to reject purchase order",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   })
-  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to reject purchase order")
 }
 
 export async function fulfillPurchaseOrder(
   purchaseOrderId: string,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
-  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/fulfill`, {
-    method: "POST",
+  return apiPost<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/fulfill`, {
+    fallbackErrorMessage: "Failed to fulfill purchase order",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   })
-  return parseResponse<PurchaseOrderApiResponse>(response, "Failed to fulfill purchase order")
 }
 
 function resolvePaymentTermOption(purchaseOrder: PurchaseOrderApiResponse): PaymentTermOption {

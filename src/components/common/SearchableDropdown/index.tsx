@@ -38,6 +38,8 @@ export default function SearchableDropdown({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const containerRef = useRef<HTMLDivElement>(null)
+  const listboxId = id ? `${id}-listbox` : undefined
+  const inputId = id ? `${id}-search` : undefined
 
   const selectedOption = options.find((option) => option.value === value)
 
@@ -83,6 +85,11 @@ export default function SearchableDropdown({
         className="w-full justify-between font-normal"
         onClick={() => setOpen((previous) => !previous)}
         disabled={disabled}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-haspopup="listbox"
+        aria-label={id ? undefined : placeholder}
       >
         <span className={cn(!selectedOption && "text-muted-foreground")}>
           {selectedOption?.label ?? placeholder}
@@ -93,14 +100,16 @@ export default function SearchableDropdown({
       {open && (
         <div className="bg-popover text-popover-foreground absolute z-50 mt-2 w-full rounded-md border p-2 shadow-md">
           <Input
+            id={inputId}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={searchPlaceholder}
             className="mb-2 h-8"
             autoFocus
+            aria-label={searchPlaceholder}
           />
 
-          <div className="max-h-56 overflow-y-auto">
+          <div id={listboxId} className="max-h-56 overflow-y-auto" role="listbox">
             {filteredOptions.length === 0 ? (
               <p className="text-muted-foreground px-2 py-2 text-sm">{emptyLabel}</p>
             ) : (
@@ -110,6 +119,8 @@ export default function SearchableDropdown({
                   type="button"
                   onClick={() => handleSelect(option.value)}
                   className="hover:bg-accent flex w-full items-center justify-between rounded-sm px-2 py-2 text-left text-sm"
+                  role="option"
+                  aria-selected={option.value === value}
                 >
                   <span>{option.label}</span>
                   {option.value === value && <Check className="size-4" />}

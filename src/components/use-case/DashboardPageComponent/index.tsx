@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ChartAreaInteractive, type PurchaseOrdersPerDayPoint } from "./chart-area-interactive"
+import { ChartAreaInteractive, type PurchaseOrdersPerDayPoint } from "@/components/use-case/DashboardPageComponent/chart-area-interactive"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+import { apiGet } from "@/lib/api"
 
 type DashboardStats = {
   totalPurchases: number
@@ -38,27 +38,11 @@ function formatCount(value: number): string {
 }
 
 async function loadDashboardStats(signal?: AbortSignal): Promise<DashboardStats> {
-  const response = await fetch("/api/purchase-orders/dashboard", {
+  return apiGet<DashboardStats>("/api/purchase-orders/dashboard", {
     cache: "no-store",
     signal,
+    fallbackErrorMessage: "Failed to load dashboard data",
   })
-
-  let payload: unknown = null
-  try {
-    payload = await response.json()
-  } catch {
-    payload = null
-  }
-
-  if (handleGatewayUnavailableLogout(response.status, payload)) {
-    throw new Error("Session ended because API gateway is unavailable.")
-  }
-
-  if (!response.ok) {
-    throw new Error("Failed to load dashboard data")
-  }
-
-  return payload as DashboardStats
 }
 
 export default function DashboardPageComponent() {

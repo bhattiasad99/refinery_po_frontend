@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { apiPost } from "@/lib/api"
 
 type PurchaseOrderStatus = "draft" | "submitted" | "approved" | "rejected" | "fulfilled"
 
@@ -23,24 +24,9 @@ async function runStatusAction(
   purchaseOrderId: string,
   endpoint: ActionConfig["endpoint"],
 ): Promise<void> {
-  const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/${endpoint}`, {
-    method: "POST",
+  await apiPost(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/${endpoint}`, {
+    fallbackErrorMessage: "Failed to update purchase order status",
   })
-
-  let body: unknown = null
-  try {
-    body = await response.json()
-  } catch {
-    body = null
-  }
-
-  if (!response.ok) {
-    const message =
-      body && typeof body === "object" && "message" in body && typeof body.message === "string"
-        ? body.message
-        : "Failed to update purchase order status"
-    throw new Error(message)
-  }
 }
 
 function getActions(status: PurchaseOrderStatus): ActionConfig[] {

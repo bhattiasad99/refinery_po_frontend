@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Eye, Filter } from "lucide-react"
@@ -27,9 +27,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+import { ApiError, apiGet } from "@/lib/api"
 import { InternalHero, InternalPageTemplate } from "@/components/templates/internal-page-template"
-import { CreatePoFromCatalogModal, type CatalogRowForQuickPo } from "./create-po-modal"
+import { useDebounce } from "@/hooks/use-debounce"
+import { CreatePoFromCatalogModal, type CatalogRowForQuickPo } from "@/components/use-case/CatalogPageComponent/create-po-modal"
 
 type CatalogApiItem = {
   id: string
@@ -75,8 +76,14 @@ const SORT_OPTIONS: ReadonlyArray<{ value: CatalogSortOption; label: string }> =
 ]
 
 const SORT_OPTION_VALUES = new Set<CatalogSortOption>(SORT_OPTIONS.map((entry) => entry.value))
-const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100] as const
+const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 500] as const
 const CATEGORY_ALL_VALUE = "__all__"
+const DELAY_MIN_MS = 0
+const DELAY_MAX_MS = 3000
+const VIRTUALIZATION_THRESHOLD = 200
+const VIRTUAL_ROW_HEIGHT = 70
+const VIRTUAL_OVERSCAN = 8
+const VIRTUAL_TABLE_MAX_HEIGHT = 520
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -124,6 +131,142 @@ function parsePositiveInteger(value: string | null, fallback: number): number {
   return Math.floor(parsed)
 }
 
+function clampDelayMs(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DELAY_MIN_MS
+  }
+  if (value < DELAY_MIN_MS) {
+    return DELAY_MIN_MS
+  }
+  if (value > DELAY_MAX_MS) {
+    return DELAY_MAX_MS
+  }
+  return Math.round(value)
+}
+
+type CatalogViewState = {
+  page: number
+  limit: number
+  searchInput: string
+  debouncedSearch: string
+  simulateDelayMs: number
+  sort: CatalogSortOption
+  appliedCategory: string
+  appliedInStock: boolean | null
+  categoryDraft: string
+  inStockDraft: InStockDraftOption
+}
+
+type CatalogViewAction =
+  | {
+      type: "syncFromUrl"
+      payload: {
+        qValue: string
+        categoryValue: string
+        inStockValue: boolean | null
+        sortValue: CatalogSortOption
+        pageValue: number
+      }
+    }
+  | { type: "setSearchInput"; payload: string }
+  | { type: "setDebouncedSearch"; payload: string }
+  | { type: "setSort"; payload: CatalogSortOption }
+  | { type: "setLimit"; payload: number }
+  | { type: "setPage"; payload: number }
+  | { type: "setCategoryDraft"; payload: string }
+  | { type: "setInStockDraft"; payload: InStockDraftOption }
+  | { type: "applyFilters" }
+  | { type: "clearFilterDraft" }
+  | { type: "setSimulateDelayMs"; payload: number }
+
+const initialCatalogViewState: CatalogViewState = {
+  page: 1,
+  limit: 20,
+  searchInput: "",
+  debouncedSearch: "",
+  simulateDelayMs: 800,
+  sort: "price_asc",
+  appliedCategory: "",
+  appliedInStock: null,
+  categoryDraft: "",
+  inStockDraft: "all",
+}
+
+function catalogViewReducer(state: CatalogViewState, action: CatalogViewAction): CatalogViewState {
+  switch (action.type) {
+    case "syncFromUrl":
+      return {
+        ...state,
+        searchInput: action.payload.qValue,
+        debouncedSearch: action.payload.qValue,
+        appliedCategory: action.payload.categoryValue,
+        appliedInStock: action.payload.inStockValue,
+        categoryDraft: action.payload.categoryValue,
+        inStockDraft: toInStockDraft(action.payload.inStockValue),
+        sort: action.payload.sortValue,
+        page: action.payload.pageValue,
+      }
+    case "setSearchInput":
+      return {
+        ...state,
+        searchInput: action.payload,
+      }
+    case "setDebouncedSearch":
+      return {
+        ...state,
+        debouncedSearch: action.payload,
+        page: 1,
+      }
+    case "setSort":
+      return {
+        ...state,
+        sort: action.payload,
+        page: 1,
+      }
+    case "setLimit":
+      return {
+        ...state,
+        limit: action.payload,
+        page: 1,
+      }
+    case "setPage":
+      return {
+        ...state,
+        page: Math.max(action.payload, 1),
+      }
+    case "setCategoryDraft":
+      return {
+        ...state,
+        categoryDraft: action.payload,
+      }
+    case "setInStockDraft":
+      return {
+        ...state,
+        inStockDraft: action.payload,
+      }
+    case "applyFilters":
+      return {
+        ...state,
+        appliedCategory: state.categoryDraft.trim(),
+        appliedInStock: parseInStock(state.inStockDraft),
+        page: 1,
+      }
+    case "clearFilterDraft":
+      return {
+        ...state,
+        categoryDraft: "",
+        inStockDraft: "all",
+      }
+    case "setSimulateDelayMs":
+      return {
+        ...state,
+        simulateDelayMs: clampDelayMs(action.payload),
+      }
+    default:
+      return state
+  }
+}
+
 function buildStateUrl(
   pathname: string,
   state: {
@@ -162,8 +305,6 @@ export default function CatalogPageComponent() {
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
 
   const [items, setItems] = useState<CatalogApiItem[]>([])
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(20)
   const [total, setTotal] = useState(0)
   const [avgLeadTime, setAvgLeadTime] = useState(0)
   const [avgPrice, setAvgPrice] = useState(0)
@@ -172,17 +313,13 @@ export default function CatalogPageComponent() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const [searchInput, setSearchInput] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [simulateDelayMs, setSimulateDelayMs] = useState(800)
-  const [sort, setSort] = useState<CatalogSortOption>("price_asc")
+  const [viewState, dispatchViewState] = useReducer(catalogViewReducer, initialCatalogViewState)
+  const debouncedSearchInput = useDebounce(viewState.searchInput.trim(), 380)
   const [categoryOptions, setCategoryOptions] = useState<string[]>([])
   const [supplierOptions, setSupplierOptions] = useState<string[]>([])
-
-  const [appliedCategory, setAppliedCategory] = useState("")
-  const [appliedInStock, setAppliedInStock] = useState<boolean | null>(null)
-  const [categoryDraft, setCategoryDraft] = useState("")
-  const [inStockDraft, setInStockDraft] = useState<InStockDraftOption>("all")
+  const [isLoadingFilterOptions, setIsLoadingFilterOptions] = useState(true)
+  const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
+  const [tableScrollTop, setTableScrollTop] = useState(0)
   const [createPoSourceItem, setCreatePoSourceItem] = useState<CatalogRowForQuickPo | null>(null)
   const shouldSimulateDelayOnNextFetchRef = useRef(false)
 
@@ -194,28 +331,18 @@ export default function CatalogPageComponent() {
     const sortValue = parseSort(urlParams.get("sort"))
     const pageValue = parsePositiveInteger(urlParams.get("page"), 1)
 
-    setSearchInput(qValue)
-    setDebouncedSearch(qValue)
-    setAppliedCategory(categoryValue)
-    setAppliedInStock(inStockValue)
-    setCategoryDraft(categoryValue)
-    setInStockDraft(toInStockDraft(inStockValue))
-    setSort(sortValue)
-    setPage(pageValue)
+    dispatchViewState({
+      type: "syncFromUrl",
+      payload: { qValue, categoryValue, inStockValue, sortValue, pageValue },
+    })
   }, [searchParamsString])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const nextDebouncedSearch = searchInput.trim()
-      if (nextDebouncedSearch !== debouncedSearch) {
-        shouldSimulateDelayOnNextFetchRef.current = true
-        setDebouncedSearch(nextDebouncedSearch)
-        setPage(1)
-      }
-    }, 380)
-
-    return () => window.clearTimeout(timer)
-  }, [debouncedSearch, searchInput])
+    if (debouncedSearchInput !== viewState.debouncedSearch) {
+      shouldSimulateDelayOnNextFetchRef.current = true
+      dispatchViewState({ type: "setDebouncedSearch", payload: debouncedSearchInput })
+    }
+  }, [debouncedSearchInput, viewState.debouncedSearch])
 
   useEffect(() => {
     const currentParams = new URLSearchParams(searchParamsString)
@@ -227,22 +354,51 @@ export default function CatalogPageComponent() {
       page: parsePositiveInteger(currentParams.get("page"), 1),
     })
     const nextUrl = buildStateUrl(pathname, {
-      search: debouncedSearch,
-      category: appliedCategory.trim(),
-      inStock: appliedInStock,
-      sort,
-      page,
+      search: viewState.debouncedSearch,
+      category: viewState.appliedCategory.trim(),
+      inStock: viewState.appliedInStock,
+      sort: viewState.sort,
+      page: viewState.page,
     })
 
     if (nextUrl !== currentCanonicalUrl) {
       router.replace(nextUrl, { scroll: false })
     }
-  }, [appliedCategory, appliedInStock, debouncedSearch, page, pathname, router, searchParamsString, sort])
+  }, [
+    pathname,
+    router,
+    searchParamsString,
+    viewState.appliedCategory,
+    viewState.appliedInStock,
+    viewState.debouncedSearch,
+    viewState.page,
+    viewState.sort,
+  ])
 
-  const totalPages = useMemo(() => Math.max(Math.ceil(total / limit), 1), [total, limit])
+  const totalPages = useMemo(
+    () => Math.max(Math.ceil(total / viewState.limit), 1),
+    [total, viewState.limit]
+  )
   const isInitialLoad = isLoading && !hasLoadedOnce
-  const categorySelectValue = categoryDraft.length > 0 ? categoryDraft : CATEGORY_ALL_VALUE
-  const hasDraftCategoryOption = categoryDraft.length > 0 && categoryOptions.includes(categoryDraft)
+  const categorySelectValue =
+    viewState.categoryDraft.length > 0 ? viewState.categoryDraft : CATEGORY_ALL_VALUE
+  const hasDraftCategoryOption =
+    viewState.categoryDraft.length > 0 && categoryOptions.includes(viewState.categoryDraft)
+  const shouldVirtualize = items.length > VIRTUALIZATION_THRESHOLD
+  const virtualStartIndex = shouldVirtualize
+    ? Math.max(Math.floor(tableScrollTop / VIRTUAL_ROW_HEIGHT) - VIRTUAL_OVERSCAN, 0)
+    : 0
+  const virtualVisibleCount = shouldVirtualize
+    ? Math.ceil(VIRTUAL_TABLE_MAX_HEIGHT / VIRTUAL_ROW_HEIGHT) + VIRTUAL_OVERSCAN * 2
+    : items.length
+  const virtualEndIndex = shouldVirtualize
+    ? Math.min(virtualStartIndex + virtualVisibleCount, items.length)
+    : items.length
+  const visibleItems = shouldVirtualize ? items.slice(virtualStartIndex, virtualEndIndex) : items
+  const topSpacerHeight = shouldVirtualize ? virtualStartIndex * VIRTUAL_ROW_HEIGHT : 0
+  const bottomSpacerHeight = shouldVirtualize
+    ? Math.max((items.length - virtualEndIndex) * VIRTUAL_ROW_HEIGHT, 0)
+    : 0
 
   const fetchCatalog = useCallback(
     async (signal?: AbortSignal) => {
@@ -254,42 +410,29 @@ export default function CatalogPageComponent() {
         shouldSimulateDelayOnNextFetchRef.current = false
 
         const params = new URLSearchParams({
-          page: String(page),
-          limit: String(limit),
-          sort,
+          page: String(viewState.page),
+          limit: String(viewState.limit),
+          sort: viewState.sort,
         })
 
-        if (debouncedSearch.length > 0) {
-          params.set("q", debouncedSearch)
+        if (viewState.debouncedSearch.length > 0) {
+          params.set("q", viewState.debouncedSearch)
         }
-        if (appliedCategory.trim().length > 0) {
-          params.set("category", appliedCategory.trim())
+        if (viewState.appliedCategory.trim().length > 0) {
+          params.set("category", viewState.appliedCategory.trim())
         }
-        if (appliedInStock !== null) {
-          params.set("inStock", String(appliedInStock))
+        if (viewState.appliedInStock !== null) {
+          params.set("inStock", String(viewState.appliedInStock))
         }
-        if (shouldSimulateDelay && simulateDelayMs > 0) {
-          params.set("simulateDelayMs", String(simulateDelayMs))
+        if (shouldSimulateDelay && viewState.simulateDelayMs > 0) {
+          params.set("simulateDelayMs", String(viewState.simulateDelayMs))
         }
 
-        const response = await fetch(`/api/catalog?${params.toString()}`, {
-          method: "GET",
+        const catalogPayload = await apiGet<CatalogListResponse>(`/api/catalog?${params.toString()}`, {
           cache: "no-store",
           signal,
+          fallbackErrorMessage: "Failed to load catalog",
         })
-
-        const payload = (await response.json()) as CatalogListResponse | { message?: string }
-        if (handleGatewayUnavailableLogout(response.status, payload)) {
-          return
-        }
-        if (!response.ok) {
-          const errorPayload = payload as { message?: string }
-          setErrorMessage(errorPayload.message ?? "Failed to load catalog")
-          setItems([])
-          return
-        }
-
-        const catalogPayload = payload as CatalogListResponse
         setItems(Array.isArray(catalogPayload.data) ? catalogPayload.data : [])
         setTotal(Number.isFinite(catalogPayload.total) ? catalogPayload.total : 0)
         setAvgLeadTime(Number.isFinite(catalogPayload.averageLeadTime) ? catalogPayload.averageLeadTime : 0)
@@ -298,6 +441,11 @@ export default function CatalogPageComponent() {
         setHasLoadedOnce(true)
       } catch (error) {
         if ((error as Error).name === "AbortError") {
+          return
+        }
+        if (error instanceof ApiError) {
+          setErrorMessage(error.message)
+          setItems([])
           return
         }
         setErrorMessage("Failed to load catalog")
@@ -309,36 +457,45 @@ export default function CatalogPageComponent() {
         setIsLoading(false)
       }
     },
-    [appliedCategory, appliedInStock, debouncedSearch, limit, page, simulateDelayMs, sort]
+    [
+      viewState.appliedCategory,
+      viewState.appliedInStock,
+      viewState.debouncedSearch,
+      viewState.limit,
+      viewState.page,
+      viewState.simulateDelayMs,
+      viewState.sort,
+    ]
   )
 
   const fetchCatalogFilterOptions = useCallback(async (signal?: AbortSignal) => {
+    setIsLoadingFilterOptions(true)
+    setFilterOptionsError(null)
+
     try {
-      const response = await fetch("/api/catalog/filters", {
-        method: "GET",
+      const optionsPayload = await apiGet<CatalogFilterOptionsResponse>("/api/catalog/filters", {
         cache: "no-store",
         signal,
+        fallbackErrorMessage: "Failed to load filter options",
       })
-      const payload = (await response.json()) as
-        | CatalogFilterOptionsResponse
-        | { message?: string }
-
-      if (handleGatewayUnavailableLogout(response.status, payload)) {
-        return
-      }
-      if (!response.ok) {
-        return
-      }
-
-      const optionsPayload = payload as CatalogFilterOptionsResponse
       setCategoryOptions(Array.isArray(optionsPayload.categories) ? optionsPayload.categories : [])
       setSupplierOptions(Array.isArray(optionsPayload.suppliers) ? optionsPayload.suppliers : [])
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         return
       }
+      if (error instanceof ApiError) {
+        setFilterOptionsError(error.message)
+      } else {
+        setFilterOptionsError("Failed to load filter options")
+      }
       setCategoryOptions([])
       setSupplierOptions([])
+    } finally {
+      if (signal?.aborted) {
+        return
+      }
+      setIsLoadingFilterOptions(false)
     }
   }, [])
 
@@ -355,24 +512,48 @@ export default function CatalogPageComponent() {
   }, [fetchCatalogFilterOptions])
 
   function applyFilters() {
-    setAppliedCategory(categoryDraft.trim())
-    setAppliedInStock(parseInStock(inStockDraft))
-    setPage(1)
+    dispatchViewState({ type: "applyFilters" })
     setIsFilterSheetOpen(false)
   }
 
   function clearFilterDraft() {
-    setCategoryDraft("")
-    setInStockDraft("all")
+    dispatchViewState({ type: "clearFilterDraft" })
   }
 
   function goToPreviousPage() {
-    setPage((current) => Math.max(current - 1, 1))
+    dispatchViewState({ type: "setPage", payload: viewState.page - 1 })
   }
 
   function goToNextPage() {
-    setPage((current) => Math.min(current + 1, totalPages))
+    dispatchViewState({ type: "setPage", payload: Math.min(viewState.page + 1, totalPages) })
   }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (
+        target?.isContentEditable ||
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT"
+      ) {
+        return
+      }
+
+      if (event.key === "ArrowLeft" && viewState.page > 1 && !isLoading) {
+        event.preventDefault()
+        dispatchViewState({ type: "setPage", payload: viewState.page - 1 })
+      }
+
+      if (event.key === "ArrowRight" && viewState.page < totalPages && !isLoading) {
+        event.preventDefault()
+        dispatchViewState({ type: "setPage", payload: viewState.page + 1 })
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [isLoading, totalPages, viewState.page])
 
   function openCreatePoModal(item: CatalogApiItem) {
     setCreatePoSourceItem({
@@ -456,20 +637,21 @@ export default function CatalogPageComponent() {
               <Input
                 id="catalog-search"
                 placeholder="Name, ID, supplier, manufacturer, model"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
+                value={viewState.searchInput}
+                onChange={(event) =>
+                  dispatchViewState({ type: "setSearchInput", payload: event.target.value })
+                }
               />
             </div>
             <div className="flex w-full flex-col gap-2 md:w-56">
               <Label htmlFor="catalog-sort">Sort by</Label>
               <Select
-                value={sort}
+                value={viewState.sort}
                 onValueChange={(value) => {
-                  setSort(value as CatalogSortOption)
-                  setPage(1)
+                  dispatchViewState({ type: "setSort", payload: value as CatalogSortOption })
                 }}
               >
-                <SelectTrigger id="catalog-sort">
+                <SelectTrigger id="catalog-sort" aria-label="Sort catalog items">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -482,27 +664,41 @@ export default function CatalogPageComponent() {
               </Select>
             </div>
             <div className="flex w-full flex-col gap-2 md:w-56">
-              <Label htmlFor="catalog-simulate-delay">Search Delay ({simulateDelayMs}ms)</Label>
+              <Label htmlFor="catalog-simulate-delay">Search Delay ({viewState.simulateDelayMs}ms)</Label>
               <Input
                 id="catalog-simulate-delay"
                 type="range"
-                min={0}
-                max={3000}
+                min={DELAY_MIN_MS}
+                max={DELAY_MAX_MS}
                 step={100}
-                value={simulateDelayMs}
-                onChange={(event) => setSimulateDelayMs(Number(event.target.value))}
+                value={viewState.simulateDelayMs}
+                aria-label="Simulated network delay in milliseconds for debounced catalog search"
+                title="Adds a test-only delay to debounced search requests to mimic slower networks."
+                onChange={(event) =>
+                  dispatchViewState({
+                    type: "setSimulateDelayMs",
+                    payload: clampDelayMs(Number(event.target.value)),
+                  })
+                }
               />
               <p className="text-muted-foreground text-xs">
-                Applied only for debounced search requests.
+                Applied only for debounced search requests. Range: {DELAY_MIN_MS} to {DELAY_MAX_MS} ms.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-            {appliedCategory ? <Badge variant="outline">Category: {appliedCategory}</Badge> : null}
-            {appliedInStock === true ? <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">In Stock only</Badge> : null}
-            {appliedInStock === false ? <Badge variant="secondary">Backorder only</Badge> : null}
+            {viewState.appliedCategory ? (
+              <Badge variant="outline">Category: {viewState.appliedCategory}</Badge>
+            ) : null}
+            {viewState.appliedInStock === true ? (
+              <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">In Stock only</Badge>
+            ) : null}
+            {viewState.appliedInStock === false ? <Badge variant="secondary">Backorder only</Badge> : null}
             <Badge variant="outline">Categories: {categoryOptions.length}</Badge>
             <Badge variant="outline">Suppliers: {supplierOptions.length}</Badge>
+            {isLoadingFilterOptions ? <Badge variant="outline">Loading filters...</Badge> : null}
+            {filterOptionsError ? <Badge variant="destructive">Filter options unavailable</Badge> : null}
+            {shouldVirtualize ? <Badge variant="outline">Virtualized rows enabled</Badge> : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -517,7 +713,11 @@ export default function CatalogPageComponent() {
             </div>
           ) : null}
 
-          <div className="overflow-x-auto rounded-lg border">
+          <div
+            className="overflow-x-auto rounded-lg border"
+            style={shouldVirtualize ? { maxHeight: VIRTUAL_TABLE_MAX_HEIGHT, overflowY: "auto" } : undefined}
+            onScroll={shouldVirtualize ? (event) => setTableScrollTop(event.currentTarget.scrollTop) : undefined}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -565,43 +765,55 @@ export default function CatalogPageComponent() {
                     <TableCell colSpan={7} className="h-24 text-center">No catalog items found.</TableCell>
                   </TableRow>
                 ) : (
-                  items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <Link href={`/catalog/${item.id}`} className="text-primary text-xs font-semibold">
-                            {item.id}
-                          </Link>
-                          <p className="line-clamp-2 font-medium">{item.name}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{item.categoryName}</Badge>
-                      </TableCell>
-                      <TableCell>{item.supplierName}</TableCell>
-                      <TableCell className="text-right">{item.leadTimeDays} days</TableCell>
-                      <TableCell className="text-right font-semibold">{currencyFormatter.format(item.priceUsd)}</TableCell>
-                      <TableCell>
-                        {item.inStock ? (
-                          <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">In Stock</Badge>
-                        ) : (
-                          <Badge variant="secondary">Backorder</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button asChild type="button" variant="outline" size="icon" aria-label={`View ${item.name}`}>
-                            <Link href={`/catalog/${item.id}`}>
-                              <Eye className="h-4 w-4" />
+                  <>
+                    {shouldVirtualize && topSpacerHeight > 0 ? (
+                      <TableRow aria-hidden="true">
+                        <TableCell colSpan={7} style={{ height: topSpacerHeight, padding: 0 }} />
+                      </TableRow>
+                    ) : null}
+                    {visibleItems.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <Link href={`/catalog/${item.id}`} className="text-primary text-xs font-semibold">
+                              {item.id}
                             </Link>
-                          </Button>
-                          <Button type="button" size="sm" onClick={() => openCreatePoModal(item)}>
-                            Create PO
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                            <p className="line-clamp-2 font-medium">{item.name}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{item.categoryName}</Badge>
+                        </TableCell>
+                        <TableCell>{item.supplierName}</TableCell>
+                        <TableCell className="text-right">{item.leadTimeDays} days</TableCell>
+                        <TableCell className="text-right font-semibold">{currencyFormatter.format(item.priceUsd)}</TableCell>
+                        <TableCell>
+                          {item.inStock ? (
+                            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">In Stock</Badge>
+                          ) : (
+                            <Badge variant="secondary">Backorder</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button asChild type="button" variant="outline" size="icon" aria-label={`View ${item.name}`}>
+                              <Link href={`/catalog/${item.id}`}>
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button type="button" size="sm" onClick={() => openCreatePoModal(item)}>
+                              Create PO
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {shouldVirtualize && bottomSpacerHeight > 0 ? (
+                      <TableRow aria-hidden="true">
+                        <TableCell colSpan={7} style={{ height: bottomSpacerHeight, padding: 0 }} />
+                      </TableRow>
+                    ) : null}
+                  </>
                 )}
               </TableBody>
             </Table>
@@ -612,21 +824,20 @@ export default function CatalogPageComponent() {
               <Skeleton className="h-4 w-64" />
             ) : (
               <p className="text-muted-foreground text-sm">
-                Showing page {page} of {totalPages} ({total} total items)
+                Showing page {viewState.page} of {totalPages} ({total} total items)
               </p>
             )}
             <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:justify-end">
               <div className="flex items-center gap-2">
                 <Label htmlFor="catalog-rows-per-page" className="text-sm">Rows per page</Label>
                 <Select
-                  value={String(limit)}
+                  value={String(viewState.limit)}
                   onValueChange={(value) => {
                     const nextLimit = Number(value)
-                    setLimit(nextLimit)
-                    setPage(1)
+                    dispatchViewState({ type: "setLimit", payload: nextLimit })
                   }}
                 >
-                  <SelectTrigger id="catalog-rows-per-page" className="w-24">
+                  <SelectTrigger id="catalog-rows-per-page" className="w-24" aria-label="Rows per page">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -638,10 +849,22 @@ export default function CatalogPageComponent() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" onClick={goToPreviousPage} disabled={isLoading || page <= 1}>
+              <Button
+                variant="outline"
+                onClick={goToPreviousPage}
+                disabled={isLoading || viewState.page <= 1}
+                aria-label="Previous page"
+                aria-keyshortcuts="ArrowLeft"
+              >
                 Previous
               </Button>
-              <Button variant="outline" onClick={goToNextPage} disabled={isLoading || page >= totalPages}>
+              <Button
+                variant="outline"
+                onClick={goToNextPage}
+                disabled={isLoading || viewState.page >= totalPages}
+                aria-label="Next page"
+                aria-keyshortcuts="ArrowRight"
+              >
                 Next
               </Button>
             </div>
@@ -671,10 +894,13 @@ export default function CatalogPageComponent() {
             <Select
               value={categorySelectValue}
               onValueChange={(value) => {
-                setCategoryDraft(value === CATEGORY_ALL_VALUE ? "" : value)
+                dispatchViewState({
+                  type: "setCategoryDraft",
+                  payload: value === CATEGORY_ALL_VALUE ? "" : value,
+                })
               }}
             >
-              <SelectTrigger id="catalog-category-filter">
+              <SelectTrigger id="catalog-category-filter" aria-label="Catalog category filter">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -684,16 +910,21 @@ export default function CatalogPageComponent() {
                     {option}
                   </SelectItem>
                 ))}
-                {!hasDraftCategoryOption && categoryDraft ? (
-                  <SelectItem value={categoryDraft}>{categoryDraft}</SelectItem>
+                {!hasDraftCategoryOption && viewState.categoryDraft ? (
+                  <SelectItem value={viewState.categoryDraft}>{viewState.categoryDraft}</SelectItem>
                 ) : null}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="catalog-stock-filter">Stock Status</Label>
-            <Select value={inStockDraft} onValueChange={(value) => setInStockDraft(value as InStockDraftOption)}>
-              <SelectTrigger id="catalog-stock-filter">
+            <Select
+              value={viewState.inStockDraft}
+              onValueChange={(value) =>
+                dispatchViewState({ type: "setInStockDraft", payload: value as InStockDraftOption })
+              }
+            >
+              <SelectTrigger id="catalog-stock-filter" aria-label="Catalog stock status filter">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

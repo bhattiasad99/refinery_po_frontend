@@ -8,12 +8,19 @@ import { PlusCircle, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { handleGatewayUnavailableLogout } from "@/lib/client-session"
+import { apiGet } from "@/lib/api"
+import { getFeatureFlags } from "@/lib/feature-flags"
 
-import { KanbanColumnComponent } from "./kanban-column"
-import { KanbanBoardState, KanbanColumn, KanbanColumnId } from "./types"
+import { KanbanColumnComponent } from "@/components/use-case/PurchaseOrdersPageComponent/kanban-column"
+import {
+  consumeOptimisticKanbanUpdates,
+  OPTIMISTIC_KANBAN_EVENT,
+  OptimisticKanbanUpdate,
+} from "@/components/use-case/PurchaseOrdersPageComponent/optimistic-updates"
+import { KanbanBoardState, KanbanColumn, KanbanColumnId } from "@/components/use-case/PurchaseOrdersPageComponent/types"
 
-const KANBAN_DRAG_ENABLED = false
+const FEATURE_FLAGS = getFeatureFlags()
+const KANBAN_DRAG_ENABLED = FEATURE_FLAGS.enableKanbanDragDrop
 const SEARCH_DEBOUNCE_MS = 250
 const COLUMN_ORDER: KanbanColumnId[] = ["draft", "submitted", "approved", "rejected", "fulfilled"]
 
@@ -99,24 +106,45 @@ function toNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
+function applyOptimisticUpdate(board: KanbanBoardState, update: OptimisticKanbanUpdate): KanbanBoardState {
+  const targetColumnId = mapStatusToColumnId(update.status)
+  const nextColumns: KanbanBoardState["columns"] = {
+    draft: { ...board.columns.draft, purchaseOrderIds: [...board.columns.draft.purchaseOrderIds] },
+    submitted: { ...board.columns.submitted, purchaseOrderIds: [...board.columns.submitted.purchaseOrderIds] },
+    approved: { ...board.columns.approved, purchaseOrderIds: [...board.columns.approved.purchaseOrderIds] },
+    rejected: { ...board.columns.rejected, purchaseOrderIds: [...board.columns.rejected.purchaseOrderIds] },
+    fulfilled: { ...board.columns.fulfilled, purchaseOrderIds: [...board.columns.fulfilled.purchaseOrderIds] },
+  }
+
+  for (const columnId of board.columnOrder) {
+    nextColumns[columnId].purchaseOrderIds = nextColumns[columnId].purchaseOrderIds.filter((id) => id !== update.id)
+  }
+
+  nextColumns[targetColumnId].purchaseOrderIds = [update.id, ...nextColumns[targetColumnId].purchaseOrderIds]
+
+  return {
+    ...board,
+    purchaseOrders: {
+      ...board.purchaseOrders,
+      [update.id]: {
+        id: update.id,
+        poNumber: update.poNumber,
+        supplierName: update.supplierName || "Unknown Supplier",
+        requestedBy: update.requestedByUser || "Unknown Requester",
+        numberOfItems: update.numberOfItems,
+        totalPrice: update.totalPrice,
+      },
+    },
+    columns: nextColumns,
+  }
+}
+
 async function loadBoardFromApi(signal?: AbortSignal): Promise<KanbanBoardState> {
-  const response = await fetch("/api/purchase-orders", { cache: "no-store", signal })
-  let payload: unknown = null
-  try {
-    payload = await response.json()
-  } catch {
-    payload = null
-  }
-
-  if (handleGatewayUnavailableLogout(response.status, payload)) {
-    throw new Error("Session ended because API gateway is unavailable.")
-  }
-
-  if (!response.ok) {
-    throw new Error("Failed to load purchase orders")
-  }
-
-  const rows = payload as PurchaseOrderListRow[]
+  const rows = await apiGet<PurchaseOrderListRow[]>("/api/purchase-orders", {
+    cache: "no-store",
+    signal,
+    fallbackErrorMessage: "Failed to load purchase orders",
+  })
   const purchaseOrders: KanbanBoardState["purchaseOrders"] = {}
   const columnBuckets: Record<KanbanColumnId, string[]> = {
     draft: [],
@@ -171,6 +199,13 @@ export default function PurchaseOrdersPageComponent() {
   const isInitialLoad = isLoading && !hasLoadedOnce
 
   useEffect(() => {
+    const queuedUpdates = consumeOptimisticKanbanUpdates()
+    if (queuedUpdates.length > 0) {
+      setBoard((currentBoard) =>
+        queuedUpdates.reduce((boardState, update) => applyOptimisticUpdate(boardState, update), currentBoard)
+      )
+    }
+
     const controller = new AbortController()
     const hydrateBoard = async () => {
       setIsLoading(true)
@@ -197,6 +232,21 @@ export default function PurchaseOrdersPageComponent() {
     void hydrateBoard()
     return () => {
       controller.abort()
+    }
+  }, [])
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<OptimisticKanbanUpdate>
+      if (!customEvent.detail) {
+        return
+      }
+      setBoard((currentBoard) => applyOptimisticUpdate(currentBoard, customEvent.detail))
+    }
+
+    window.addEventListener(OPTIMISTIC_KANBAN_EVENT, handler)
+    return () => {
+      window.removeEventListener(OPTIMISTIC_KANBAN_EVENT, handler)
     }
   }, [])
 
@@ -292,6 +342,7 @@ export default function PurchaseOrdersPageComponent() {
           <div className="relative w-full md:w-72">
             <Search className="text-muted-foreground pointer-events-none absolute left-3 top-2.5 size-4" />
             <Input
+              aria-label="Search purchase orders"
               placeholder="Search purchase orders..."
               className="h-10 pl-9"
               value={searchDraft}
