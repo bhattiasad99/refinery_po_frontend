@@ -646,7 +646,7 @@ export default function CatalogPageComponent() {
           <div className="flex w-full flex-col gap-3 md:flex-row md:items-end">
             <Button
               type="button"
-              variant="outline"
+              variant="default"
               size="icon"
               aria-label="Open filters"
               onClick={() => setIsFilterSheetOpen(true)}
