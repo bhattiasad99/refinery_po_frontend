@@ -169,7 +169,6 @@ export default function CreatePurchaseOrderPreview({
       const submittedPurchaseOrder = await submitPurchaseOrder(draft.id)
       enqueueOptimisticKanbanUpdate({
         id: submittedPurchaseOrder.id,
-        poNumber: submittedPurchaseOrder.poNumber,
         status: submittedPurchaseOrder.status,
         supplierName: submittedPurchaseOrder.supplierName ?? draft.step2.supplierName,
         requestedByUser: submittedPurchaseOrder.requestedByUser ?? draft.step1.requestedByUser,
@@ -180,8 +179,7 @@ export default function CreatePurchaseOrderPreview({
             0
           ) ?? itemSubtotal,
       })
-      const detailSegment = submittedPurchaseOrder.poNumber?.trim() || submittedPurchaseOrder.id
-      router.push(`/purchase-orders/${encodeURIComponent(detailSegment)}`)
+      router.push(`/purchase-orders/${encodeURIComponent(submittedPurchaseOrder.id)}`)
       router.refresh()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to submit purchase order")

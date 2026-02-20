@@ -5,7 +5,6 @@ export const OPTIMISTIC_KANBAN_EVENT = "po:kanban:optimistic-update"
 
 export type OptimisticKanbanUpdate = {
   id: string
-  poNumber: string | null
   status: string | null
   supplierName: string
   requestedByUser: string

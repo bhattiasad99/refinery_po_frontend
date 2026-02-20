@@ -33,7 +33,6 @@ type PurchaseOrderMilestoneApi = {
 
 export type PurchaseOrderApiResponse = {
   id: string
-  poNumber: string | null
   status: string
   submittedAt: string | null
   submittedBy: string | null
