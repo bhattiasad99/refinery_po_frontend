@@ -12,6 +12,20 @@
   <img alt="Vitest" src="https://img.shields.io/badge/Tested%20with-Vitest-6E9F18" />
 </p>
 
+## Table of Contents
+
+- [Front-End Assignment Checklist](#front-end-assignment-checklist-refinery-purchase-order-system)
+- [Why This Frontend Stands Out](#why-this-frontend-stands-out)
+- [Feature Highlights](#feature-highlights)
+- [Tech Stack](#tech-stack)
+- [Architecture Snapshot](#architecture-snapshot)
+- [Quick Start](#quick-start)
+- [Demo Login (Built-In)](#demo-login-built-in)
+- [Available Scripts](#available-scripts)
+- [Project Structure](#project-structure)
+- [Production Readiness Checklist](#production-readiness-checklist)
+- [Notes](#notes)
+
 ## Front-End Assignment Checklist (Refinery Purchase Order System)
 
 Document date: `2026-02-12`
