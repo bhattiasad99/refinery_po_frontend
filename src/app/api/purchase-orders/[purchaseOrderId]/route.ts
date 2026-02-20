@@ -7,10 +7,6 @@ type GatewayResponse<T> = {
   message?: string
 }
 
-type PurchaseOrderLookupRow = {
-  poNumber?: string | null
-}
-
 type RouteContext = {
   params: Promise<{
     purchaseOrderId: string
@@ -24,29 +20,6 @@ export async function GET(_request: NextRequest, context: RouteContext): Promise
     const response = await apiFetch(`/purchase-orders/${encodedId}`)
     const gatewayPayload = (await response.json()) as GatewayResponse<unknown>
     const body = gatewayPayload.body ?? null
-
-    if (response.status === 404) {
-      const listResponse = await apiFetch("/purchase-orders")
-      const listPayload = (await listResponse.json()) as GatewayResponse<unknown>
-      const listBody = listPayload.body ?? []
-
-      if (listResponse.ok && Array.isArray(listBody)) {
-        const matchedPurchaseOrder = listBody.find((row) => {
-          if (!row || typeof row !== "object") {
-            return false
-          }
-          const candidate = row as PurchaseOrderLookupRow
-          return (
-            typeof candidate.poNumber === "string" &&
-            candidate.poNumber.trim().toLowerCase() === purchaseOrderId.trim().toLowerCase()
-          )
-        })
-
-        if (matchedPurchaseOrder) {
-          return NextResponse.json(matchedPurchaseOrder, { status: 200 })
-        }
-      }
-    }
 
     if (!response.ok) {
       return NextResponse.json(

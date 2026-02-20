@@ -40,7 +40,6 @@ function createEmptyBoard(): KanbanBoardState {
 
 type PurchaseOrderListRow = {
   id: string
-  poNumber: string | null
   status: string | null
   supplierName: string | null
   requestedByUser: string | null
@@ -128,7 +127,6 @@ function applyOptimisticUpdate(board: KanbanBoardState, update: OptimisticKanban
       ...board.purchaseOrders,
       [update.id]: {
         id: update.id,
-        poNumber: update.poNumber,
         supplierName: update.supplierName || "Unknown Supplier",
         requestedBy: update.requestedByUser || "Unknown Requester",
         numberOfItems: update.numberOfItems,
@@ -166,7 +164,6 @@ async function loadBoardFromApi(signal?: AbortSignal): Promise<KanbanBoardState>
 
     purchaseOrders[row.id] = {
       id: row.id,
-      poNumber: row.poNumber,
       supplierName: row.supplierName ?? "Unknown Supplier",
       requestedBy: row.requestedByUser ?? "Unknown Requester",
       numberOfItems: lineItems.length,

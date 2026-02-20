@@ -12,6 +12,53 @@
   <img alt="Vitest" src="https://img.shields.io/badge/Tested%20with-Vitest-6E9F18" />
 </p>
 
+## Front-End Assignment Checklist (Refinery Purchase Order System)
+
+Document date: `2026-02-12`
+
+### Context
+
+- [x] Buyer-facing Purchase Order system for refinery equipment.
+- [x] Logged-in role: Buyer.
+- [x] Supports search, draft creation, submission, and status tracking.
+
+### Core Requirements
+
+- [x] Search catalog items by name, id, supplier, manufacturer, and model.
+- [x] Filter by category and in-stock.
+- [x] Sorting:
+  - [x] Price Low -> High
+  - [x] Price High -> Low
+  - [x] Lead Time Low -> High
+  - [x] Lead Time High -> Low
+  - [x] Supplier A-Z
+- [x] Debounced search with simulated loading state.
+- [x] URL query parameters reflect search/filter/sort state.
+
+### PO Draft Rules
+
+- [x] First item added defines supplier.
+- [x] All items in draft must belong to the same supplier.
+- [x] Supplier mismatch is blocked with clear messaging.
+- [x] Draft state is persisted.
+
+### PO Workflow
+
+- [x] Header step: requestor, cost center (`CC-1234`), needed-by date, payment terms.
+- [x] Review step with edit capability.
+- [x] Submit step with loading state and PO number generation.
+- [x] PO list and PO details view with status timeline.
+- [x] Status transitions: Submitted -> Approved -> Rejected -> Fulfilled.
+
+### Evaluation Focus
+
+- [x] UX clarity
+- [x] Workflow correctness
+- [x] Supplier enforcement logic
+- [x] Routing
+- [x] State modeling
+- [x] Code quality
+
 ## Why This Frontend Stands Out
 
 - Designed for real procurement workflows: dashboard visibility, supplier views, catalog discovery, and PO lifecycle actions.

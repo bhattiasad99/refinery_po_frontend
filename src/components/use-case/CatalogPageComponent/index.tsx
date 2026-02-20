@@ -322,6 +322,7 @@ export default function CatalogPageComponent() {
   const [tableScrollTop, setTableScrollTop] = useState(0)
   const [createPoSourceItem, setCreatePoSourceItem] = useState<CatalogRowForQuickPo | null>(null)
   const shouldSimulateDelayOnNextFetchRef = useRef(false)
+  const pendingReplaceUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
     const urlParams = new URLSearchParams(searchParamsString)
@@ -331,11 +332,29 @@ export default function CatalogPageComponent() {
     const sortValue = parseSort(urlParams.get("sort"))
     const pageValue = parsePositiveInteger(urlParams.get("page"), 1)
 
-    dispatchViewState({
-      type: "syncFromUrl",
-      payload: { qValue, categoryValue, inStockValue, sortValue, pageValue },
-    })
-  }, [searchParamsString])
+    const isSynced =
+      viewState.searchInput === qValue &&
+      viewState.debouncedSearch === qValue &&
+      viewState.appliedCategory === categoryValue &&
+      viewState.appliedInStock === inStockValue &&
+      viewState.sort === sortValue &&
+      viewState.page === pageValue
+
+    if (!isSynced) {
+      dispatchViewState({
+        type: "syncFromUrl",
+        payload: { qValue, categoryValue, inStockValue, sortValue, pageValue },
+      })
+    }
+  }, [
+    searchParamsString,
+    viewState.appliedCategory,
+    viewState.appliedInStock,
+    viewState.debouncedSearch,
+    viewState.page,
+    viewState.searchInput,
+    viewState.sort,
+  ])
 
   useEffect(() => {
     if (debouncedSearchInput !== viewState.debouncedSearch) {
@@ -361,7 +380,12 @@ export default function CatalogPageComponent() {
       page: viewState.page,
     })
 
-    if (nextUrl !== currentCanonicalUrl) {
+    if (pendingReplaceUrlRef.current === currentCanonicalUrl) {
+      pendingReplaceUrlRef.current = null
+    }
+
+    if (nextUrl !== currentCanonicalUrl && pendingReplaceUrlRef.current !== nextUrl) {
+      pendingReplaceUrlRef.current = nextUrl
       router.replace(nextUrl, { scroll: false })
     }
   }, [

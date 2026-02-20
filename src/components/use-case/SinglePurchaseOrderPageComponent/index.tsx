@@ -30,7 +30,6 @@ type PurchaseOrderLineItem = {
 
 type PurchaseOrderApiRow = {
   id: string
-  poNumber: string | null
   status: string
   submittedAt: string | null
   submittedBy: string | null
@@ -66,7 +65,6 @@ type TimelineEntry = {
 
 type PurchaseOrderViewModel = {
   id: string
-  poNumber: string | null
   status: "draft" | "submitted" | "approved" | "rejected" | "fulfilled"
   supplierName: string
   requestedBy: string
@@ -208,7 +206,6 @@ function mapPurchaseOrderToViewModel(purchaseOrder: PurchaseOrderApiRow): Purcha
 
   return {
     id: purchaseOrder.id,
-    poNumber: purchaseOrder.poNumber,
     status,
     supplierName: purchaseOrder.supplierName ?? "Unknown Supplier",
     requestedBy: purchaseOrder.requestedByDepartment ?? createdBy,
@@ -305,7 +302,7 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
 
       <InternalHero
         title={purchaseOrder.supplierName}
-        description={`Requested by ${purchaseOrder.requestedBy}${purchaseOrder.poNumber ? ` - Internal ID ${purchaseOrder.id}` : ""}`}
+        description={`Requested by ${purchaseOrder.requestedBy}`}
         actions={
           <StatusActionButtons
             purchaseOrderId={purchaseOrder.id}
@@ -315,11 +312,6 @@ const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
         meta={
           <>
             <Badge className="bg-white/15 text-white hover:bg-white/15">PO #{purchaseOrder.id}</Badge>
-            {purchaseOrder.poNumber ? (
-              <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
-                {purchaseOrder.poNumber}
-              </Badge>
-            ) : null}
             {getStatusBadge(purchaseOrder.status)}
           </>
         }
