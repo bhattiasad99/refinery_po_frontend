@@ -22,7 +22,12 @@ export class ApiError extends Error {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null
+  if (Object.prototype.toString.call(value) !== "[object Object]") {
+    return false
+  }
+
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
 }
 
 function shouldSerializeJsonBody(body: ApiRequestOptions["body"]): body is Record<string, unknown> {
@@ -68,12 +73,14 @@ async function request<T>(path: string, options: ApiRequestOptions = {}): Promis
   const { body, fallbackErrorMessage = "Request failed", headers: originalHeaders, ...init } = options
   const headers = new Headers(originalHeaders)
 
-  let requestBody: BodyInit | null | undefined = body
+  let requestBody: BodyInit | null | undefined
   if (shouldSerializeJsonBody(body)) {
     requestBody = JSON.stringify(body)
     if (!headers.has("content-type")) {
       headers.set("content-type", "application/json")
     }
+  } else {
+    requestBody = body
   }
 
   const response = await fetch(path, {

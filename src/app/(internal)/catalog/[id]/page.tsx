@@ -333,6 +333,9 @@ type CatalogDetailContentProps = {
   id: string
 }
 
+type SpecEntryValue = string | null
+type VisibleSpecEntryValue = string
+
 async function CatalogDetailContent({ id }: CatalogDetailContentProps) {
   const item = await loadCatalogItem(id)
 
@@ -359,7 +362,7 @@ async function CatalogDetailContent({ id }: CatalogDetailContentProps) {
     )
   }
 
-  const specEntries: Array<{ key: string; value: string | number | boolean | string[] }> = [
+  const specEntries: Array<{ key: string; value: SpecEntryValue }> = [
     { key: "standard", value: item.standard },
     { key: "specsSupplier", value: item.specsSupplier },
     { key: "nominalSize", value: item.nominalSize },
@@ -428,7 +431,7 @@ async function CatalogDetailContent({ id }: CatalogDetailContentProps) {
     { key: "body", value: item.body },
     { key: "quickChange", value: item.quickChange },
   ]
-    .filter((entry) => isVisibleValue(entry.value))
+    .filter((entry): entry is { key: string; value: VisibleSpecEntryValue } => isVisibleValue(entry.value))
     .sort((a, b) => a.key.localeCompare(b.key))
 
   const generalEntries: Array<{ label: string; value: string }> = [
