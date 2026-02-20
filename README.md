@@ -18,46 +18,46 @@ Document date: `2026-02-12`
 
 ### Context
 
-- [x] Buyer-facing Purchase Order system for refinery equipment.
-- [x] Logged-in role: Buyer.
-- [x] Supports search, draft creation, submission, and status tracking.
+- [x] Buyer-facing Purchase Order system for refinery equipment. (Where: `src/app/(internal)/*` pages and `src/components/use-case/*`; Verify: sign in and navigate dashboard, catalog, suppliers, and purchase order screens.)
+- [x] Logged-in role: Buyer. (Where: `src/app/login/login-form.tsx`, `src/app/actions/auth-actions.ts`, `src/proxy.ts`; Verify: use Buyer login, confirm protected pages require auth.)
+- [x] Supports search, draft creation, submission, and status tracking. (Where: catalog + PO flow components under `src/components/use-case/`; Verify: search catalog, create draft, submit PO, then open PO detail timeline.)
 
 ### Core Requirements
 
-- [x] Search catalog items by name, id, supplier, manufacturer, and model.
-- [x] Filter by category and in-stock.
+- [x] Search catalog items by name, id, supplier, manufacturer, and model. (Where: `src/components/use-case/CatalogPageComponent/index.tsx`, `src/app/api/catalog/route.ts`; Verify: type each field value in catalog search and confirm narrowed results.)
+- [x] Filter by category and in-stock. (Where: `src/components/use-case/CatalogPageComponent/index.tsx`, `src/app/api/catalog/filters/route.ts`; Verify: apply filters and confirm result counts/items change.)
 - [x] Sorting:
-  - [x] Price Low -> High
-  - [x] Price High -> Low
-  - [x] Lead Time Low -> High
-  - [x] Lead Time High -> Low
-  - [x] Supplier A-Z
-- [x] Debounced search with simulated loading state.
-- [x] URL query parameters reflect search/filter/sort state.
+  - [x] Price Low -> High (Where: `src/components/use-case/CatalogPageComponent/index.tsx`; Verify: choose sort option and confirm ascending price order.)
+  - [x] Price High -> Low (Where: `src/components/use-case/CatalogPageComponent/index.tsx`; Verify: choose sort option and confirm descending price order.)
+  - [x] Lead Time Low -> High (Where: `src/components/use-case/CatalogPageComponent/index.tsx`; Verify: choose sort option and confirm ascending lead time order.)
+  - [x] Lead Time High -> Low (Where: `src/components/use-case/CatalogPageComponent/index.tsx`; Verify: choose sort option and confirm descending lead time order.)
+  - [x] Supplier A-Z (Where: `src/components/use-case/CatalogPageComponent/index.tsx`; Verify: choose sort option and confirm alphabetical supplier order.)
+- [x] Debounced search with simulated loading state. (Where: `src/hooks/use-debounce.ts`, catalog component loading behavior; Verify: type quickly and observe delayed query/update with loading UI.)
+- [x] URL query parameters reflect search/filter/sort state. (Where: `src/app/(internal)/catalog/page.tsx`, catalog component URL state sync; Verify: change controls and confirm URL updates; refresh preserves state.)
 
 ### PO Draft Rules
 
-- [x] First item added defines supplier.
-- [x] All items in draft must belong to the same supplier.
-- [x] Supplier mismatch is blocked with clear messaging.
-- [x] Draft state is persisted.
+- [x] First item added defines supplier. (Where: `src/components/use-case/CreatePurchaseOrderFlow/step-two-state.ts`; Verify: add first item and inspect selected supplier context.)
+- [x] All items in draft must belong to the same supplier. (Where: `src/components/use-case/CreatePurchaseOrderFlow/step-two-state.ts`; Verify: try adding an item from another supplier and confirm it is rejected.)
+- [x] Supplier mismatch is blocked with clear messaging. (Where: `src/components/use-case/CreatePurchaseOrderFlow/step-two.tsx` + modal/state handling; Verify: trigger mismatch and confirm validation message is shown.)
+- [x] Draft state is persisted. (Where: `src/components/use-case/CreatePurchaseOrderFlow/draft-api.ts` and draft routes; Verify: create/edit draft, refresh or revisit step URL, and confirm values remain.)
 
 ### PO Workflow
 
-- [x] Header step: requestor, cost center (`CC-1234`), needed-by date, payment terms.
-- [x] Review step with edit capability.
-- [x] Submit step with loading state and PO number generation.
-- [x] PO list and PO details view with status timeline.
-- [x] Status transitions: Submitted -> Approved -> Rejected -> Fulfilled.
+- [x] Header step: requestor, cost center (`CC-1234`), needed-by date, payment terms. (Where: `src/components/use-case/CreatePurchaseOrderFlow/step-one.tsx`, `step-three-payment-terms.tsx`; Verify: complete fields in flow and confirm validation.)
+- [x] Review step with edit capability. (Where: `src/components/use-case/CreatePurchaseOrderFlow/preview-page.tsx`; Verify: open preview and use edit actions to return to prior steps.)
+- [x] Submit step with loading state and PO number generation. (Where: `src/components/use-case/CreatePurchaseOrderFlow/purchase-order-client.ts`, `src/app/api/purchase-orders/[purchaseOrderId]/submit/route.ts`; Verify: submit draft, observe pending state, then PO number in result/detail.)
+- [x] PO list and PO details view with status timeline. (Where: `src/components/use-case/PurchaseOrdersPageComponent/index.tsx`, `src/components/use-case/SinglePurchaseOrderPageComponent/index.tsx`; Verify: open list, then a PO detail page and inspect timeline UI.)
+- [x] Status transitions: Submitted -> Approved -> Rejected -> Fulfilled. (Where: `src/components/use-case/SinglePurchaseOrderPageComponent/status-action-buttons.tsx` + PO action API routes; Verify: execute actions and confirm timeline/status updates.)
 
 ### Evaluation Focus
 
-- [x] UX clarity
-- [x] Workflow correctness
-- [x] Supplier enforcement logic
-- [x] Routing
-- [x] State modeling
-- [x] Code quality
+- [x] UX clarity (Where: consistent use-case components under `src/components/use-case/`; Verify: full create/review/submit flow is understandable without extra instructions.)
+- [x] Workflow correctness (Where: step flow components + PO API route handlers; Verify: required sequence and validation gates are enforced.)
+- [x] Supplier enforcement logic (Where: `src/components/use-case/CreatePurchaseOrderFlow/step-two-state.ts`; Verify: mixed-supplier additions are blocked deterministically.)
+- [x] Routing (Where: App Router pages in `src/app/(internal)/**` and API routes in `src/app/api/**`; Verify: deep links for catalog/PO pages and action routes work.)
+- [x] State modeling (Where: `step-two-state.ts`, reference-data context, optimistic updates; Verify: state survives step transitions and reflects server updates.)
+- [x] Code quality (Where: tests in `step-two-state.test.ts`, `step-two.test.tsx`, `item-selection-modal.test.tsx`; Verify: run `npm run test` and `npm run lint`.)
 
 ## Why This Frontend Stands Out
 
