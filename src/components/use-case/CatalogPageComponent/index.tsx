@@ -76,10 +76,9 @@ const SORT_OPTIONS: ReadonlyArray<{ value: CatalogSortOption; label: string }> =
 ]
 
 const SORT_OPTION_VALUES = new Set<CatalogSortOption>(SORT_OPTIONS.map((entry) => entry.value))
-const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 500] as const
+const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200] as const
+const DEFAULT_LIMIT = 20
 const CATEGORY_ALL_VALUE = "__all__"
-const DELAY_MIN_MS = 0
-const DELAY_MAX_MS = 3000
 const VIRTUALIZATION_THRESHOLD = 200
 const VIRTUAL_ROW_HEIGHT = 70
 const VIRTUAL_OVERSCAN = 8
@@ -131,17 +130,11 @@ function parsePositiveInteger(value: string | null, fallback: number): number {
   return Math.floor(parsed)
 }
 
-function clampDelayMs(value: number): number {
-  if (!Number.isFinite(value)) {
-    return DELAY_MIN_MS
+function normalizeLimit(value: number): number {
+  if (ROWS_PER_PAGE_OPTIONS.includes(value as (typeof ROWS_PER_PAGE_OPTIONS)[number])) {
+    return value
   }
-  if (value < DELAY_MIN_MS) {
-    return DELAY_MIN_MS
-  }
-  if (value > DELAY_MAX_MS) {
-    return DELAY_MAX_MS
-  }
-  return Math.round(value)
+  return DEFAULT_LIMIT
 }
 
 type CatalogViewState = {
@@ -149,7 +142,6 @@ type CatalogViewState = {
   limit: number
   searchInput: string
   debouncedSearch: string
-  simulateDelayMs: number
   sort: CatalogSortOption
   appliedCategory: string
   appliedInStock: boolean | null
@@ -166,6 +158,7 @@ type CatalogViewAction =
         inStockValue: boolean | null
         sortValue: CatalogSortOption
         pageValue: number
+        limitValue: number
       }
     }
   | { type: "setSearchInput"; payload: string }
@@ -177,14 +170,12 @@ type CatalogViewAction =
   | { type: "setInStockDraft"; payload: InStockDraftOption }
   | { type: "applyFilters" }
   | { type: "clearFilterDraft" }
-  | { type: "setSimulateDelayMs"; payload: number }
 
 const initialCatalogViewState: CatalogViewState = {
   page: 1,
-  limit: 20,
+  limit: DEFAULT_LIMIT,
   searchInput: "",
   debouncedSearch: "",
-  simulateDelayMs: 800,
   sort: "price_asc",
   appliedCategory: "",
   appliedInStock: null,
@@ -205,6 +196,7 @@ function catalogViewReducer(state: CatalogViewState, action: CatalogViewAction):
         inStockDraft: toInStockDraft(action.payload.inStockValue),
         sort: action.payload.sortValue,
         page: action.payload.pageValue,
+        limit: normalizeLimit(action.payload.limitValue),
       }
     case "setSearchInput":
       return {
@@ -226,7 +218,7 @@ function catalogViewReducer(state: CatalogViewState, action: CatalogViewAction):
     case "setLimit":
       return {
         ...state,
-        limit: action.payload,
+        limit: normalizeLimit(action.payload),
         page: 1,
       }
     case "setPage":
@@ -257,11 +249,6 @@ function catalogViewReducer(state: CatalogViewState, action: CatalogViewAction):
         categoryDraft: "",
         inStockDraft: "all",
       }
-    case "setSimulateDelayMs":
-      return {
-        ...state,
-        simulateDelayMs: clampDelayMs(action.payload),
-      }
     default:
       return state
   }
@@ -275,6 +262,7 @@ function buildStateUrl(
     inStock: boolean | null
     sort: CatalogSortOption
     page: number
+    limit: number
   }
 ): string {
   const params = new URLSearchParams()
@@ -290,6 +278,9 @@ function buildStateUrl(
   params.set("sort", state.sort)
   if (state.page > 1) {
     params.set("page", String(state.page))
+  }
+  if (state.limit !== initialCatalogViewState.limit) {
+    params.set("limit", String(state.limit))
   }
 
   const queryString = params.toString()
@@ -321,7 +312,6 @@ export default function CatalogPageComponent() {
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
   const [tableScrollTop, setTableScrollTop] = useState(0)
   const [createPoSourceItem, setCreatePoSourceItem] = useState<CatalogRowForQuickPo | null>(null)
-  const shouldSimulateDelayOnNextFetchRef = useRef(false)
   const pendingReplaceUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -331,34 +321,16 @@ export default function CatalogPageComponent() {
     const inStockValue = parseInStock(urlParams.get("inStock"))
     const sortValue = parseSort(urlParams.get("sort"))
     const pageValue = parsePositiveInteger(urlParams.get("page"), 1)
+    const limitValue = parsePositiveInteger(urlParams.get("limit"), initialCatalogViewState.limit)
 
-    const isSynced =
-      viewState.searchInput === qValue &&
-      viewState.debouncedSearch === qValue &&
-      viewState.appliedCategory === categoryValue &&
-      viewState.appliedInStock === inStockValue &&
-      viewState.sort === sortValue &&
-      viewState.page === pageValue
-
-    if (!isSynced) {
-      dispatchViewState({
-        type: "syncFromUrl",
-        payload: { qValue, categoryValue, inStockValue, sortValue, pageValue },
-      })
-    }
-  }, [
-    searchParamsString,
-    viewState.appliedCategory,
-    viewState.appliedInStock,
-    viewState.debouncedSearch,
-    viewState.page,
-    viewState.searchInput,
-    viewState.sort,
-  ])
+    dispatchViewState({
+      type: "syncFromUrl",
+      payload: { qValue, categoryValue, inStockValue, sortValue, pageValue, limitValue },
+    })
+  }, [searchParamsString])
 
   useEffect(() => {
     if (debouncedSearchInput !== viewState.debouncedSearch) {
-      shouldSimulateDelayOnNextFetchRef.current = true
       dispatchViewState({ type: "setDebouncedSearch", payload: debouncedSearchInput })
     }
   }, [debouncedSearchInput, viewState.debouncedSearch])
@@ -371,6 +343,9 @@ export default function CatalogPageComponent() {
       inStock: parseInStock(currentParams.get("inStock")),
       sort: parseSort(currentParams.get("sort")),
       page: parsePositiveInteger(currentParams.get("page"), 1),
+      limit: normalizeLimit(
+        parsePositiveInteger(currentParams.get("limit"), initialCatalogViewState.limit)
+      ),
     })
     const nextUrl = buildStateUrl(pathname, {
       search: viewState.debouncedSearch,
@@ -378,6 +353,7 @@ export default function CatalogPageComponent() {
       inStock: viewState.appliedInStock,
       sort: viewState.sort,
       page: viewState.page,
+      limit: viewState.limit,
     })
 
     if (pendingReplaceUrlRef.current === currentCanonicalUrl) {
@@ -395,6 +371,7 @@ export default function CatalogPageComponent() {
     viewState.appliedCategory,
     viewState.appliedInStock,
     viewState.debouncedSearch,
+    viewState.limit,
     viewState.page,
     viewState.sort,
   ])
@@ -430,9 +407,6 @@ export default function CatalogPageComponent() {
       setErrorMessage(null)
 
       try {
-        const shouldSimulateDelay = shouldSimulateDelayOnNextFetchRef.current
-        shouldSimulateDelayOnNextFetchRef.current = false
-
         const params = new URLSearchParams({
           page: String(viewState.page),
           limit: String(viewState.limit),
@@ -447,9 +421,6 @@ export default function CatalogPageComponent() {
         }
         if (viewState.appliedInStock !== null) {
           params.set("inStock", String(viewState.appliedInStock))
-        }
-        if (shouldSimulateDelay && viewState.simulateDelayMs > 0) {
-          params.set("simulateDelayMs", String(viewState.simulateDelayMs))
         }
 
         const catalogPayload = await apiGet<CatalogListResponse>(`/api/catalog?${params.toString()}`, {
@@ -487,7 +458,6 @@ export default function CatalogPageComponent() {
       viewState.debouncedSearch,
       viewState.limit,
       viewState.page,
-      viewState.simulateDelayMs,
       viewState.sort,
     ]
   )
@@ -590,6 +560,27 @@ export default function CatalogPageComponent() {
     })
   }
 
+  const detailLinkSearch = useMemo(() => {
+    const returnTo = buildStateUrl(pathname, {
+      search: viewState.debouncedSearch,
+      category: viewState.appliedCategory.trim(),
+      inStock: viewState.appliedInStock,
+      sort: viewState.sort,
+      page: viewState.page,
+      limit: viewState.limit,
+    })
+    const params = new URLSearchParams({ returnTo })
+    return params.toString()
+  }, [
+    pathname,
+    viewState.appliedCategory,
+    viewState.appliedInStock,
+    viewState.debouncedSearch,
+    viewState.limit,
+    viewState.page,
+    viewState.sort,
+  ])
+
   return (
     <InternalPageTemplate className="gap-5">
       <InternalHero
@@ -687,28 +678,6 @@ export default function CatalogPageComponent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex w-full flex-col gap-2 md:w-56">
-              <Label htmlFor="catalog-simulate-delay">Search Delay ({viewState.simulateDelayMs}ms)</Label>
-              <Input
-                id="catalog-simulate-delay"
-                type="range"
-                min={DELAY_MIN_MS}
-                max={DELAY_MAX_MS}
-                step={100}
-                value={viewState.simulateDelayMs}
-                aria-label="Simulated network delay in milliseconds for debounced catalog search"
-                title="Adds a test-only delay to debounced search requests to mimic slower networks."
-                onChange={(event) =>
-                  dispatchViewState({
-                    type: "setSimulateDelayMs",
-                    payload: clampDelayMs(Number(event.target.value)),
-                  })
-                }
-              />
-              <p className="text-muted-foreground text-xs">
-                Applied only for debounced search requests. Range: {DELAY_MIN_MS} to {DELAY_MAX_MS} ms.
-              </p>
-            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
             {viewState.appliedCategory ? (
@@ -799,7 +768,10 @@ export default function CatalogPageComponent() {
                       <TableRow key={item.id}>
                         <TableCell>
                           <div className="space-y-1">
-                            <Link href={`/catalog/${item.id}`} className="text-primary text-xs font-semibold">
+                            <Link
+                              href={`/catalog/${item.id}?${detailLinkSearch}`}
+                              className="text-primary text-xs font-semibold"
+                            >
                               {item.id}
                             </Link>
                             <p className="line-clamp-2 font-medium">{item.name}</p>
@@ -821,7 +793,7 @@ export default function CatalogPageComponent() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button asChild type="button" variant="outline" size="icon" aria-label={`View ${item.name}`}>
-                              <Link href={`/catalog/${item.id}`}>
+                              <Link href={`/catalog/${item.id}?${detailLinkSearch}`}>
                                 <Eye className="h-4 w-4" />
                               </Link>
                             </Button>

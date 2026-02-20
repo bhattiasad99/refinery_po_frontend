@@ -21,6 +21,7 @@ import { BackToResultsButton } from "./back-to-results-button"
 
 type CatalogDetailPageProps = {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ returnTo?: string }>
 }
 
 type GatewayResponse<T> = {
@@ -319,30 +320,46 @@ async function loadCatalogItem(id: string): Promise<CatalogDetail | null> {
   return normalizeCatalogDetail(payload.body)
 }
 
-export default async function CatalogDetailPage({ params }: CatalogDetailPageProps) {
+function resolveCatalogReturnHref(rawReturnTo: string | undefined): string {
+  if (!rawReturnTo) {
+    return "/catalog"
+  }
+
+  const trimmed = rawReturnTo.trim()
+  if (!trimmed.startsWith("/catalog")) {
+    return "/catalog"
+  }
+
+  return trimmed
+}
+
+export default async function CatalogDetailPage({ params, searchParams }: CatalogDetailPageProps) {
   const { id } = await params
+  const resolvedSearchParams = await searchParams
+  const fallbackHref = resolveCatalogReturnHref(resolvedSearchParams.returnTo)
 
   return (
     <Suspense fallback={<CatalogDetailLoading />}>
-      <CatalogDetailContent id={id} />
+      <CatalogDetailContent id={id} fallbackHref={fallbackHref} />
     </Suspense>
   )
 }
 
 type CatalogDetailContentProps = {
   id: string
+  fallbackHref: string
 }
 
 type SpecEntryValue = string | null
 type VisibleSpecEntryValue = string
 
-async function CatalogDetailContent({ id }: CatalogDetailContentProps) {
+async function CatalogDetailContent({ id, fallbackHref }: CatalogDetailContentProps) {
   const item = await loadCatalogItem(id)
 
   if (!item) {
     return (
       <InternalPageTemplate className="mx-auto max-w-7xl pb-6">
-        <BackToResultsButton fallbackHref="/catalog" />
+        <BackToResultsButton fallbackHref={fallbackHref} />
 
         <Card className="border-dashed border-slate-300">
           <CardHeader>
@@ -353,7 +370,7 @@ async function CatalogDetailContent({ id }: CatalogDetailContentProps) {
               The catalog item you requested does not exist or may have been removed.
             </p>
             <p className="text-muted-foreground">Item ID: {id}</p>
-            <Link href="/catalog" className="text-primary inline-flex w-fit text-sm font-medium underline">
+            <Link href={fallbackHref} className="text-primary inline-flex w-fit text-sm font-medium underline">
               Browse catalog results
             </Link>
           </CardContent>
@@ -445,7 +462,7 @@ async function CatalogDetailContent({ id }: CatalogDetailContentProps) {
 
   return (
     <InternalPageTemplate className="mx-auto max-w-7xl pb-6">
-      <BackToResultsButton fallbackHref="/catalog" />
+      <BackToResultsButton fallbackHref={fallbackHref} />
 
       <InternalHero
         title={item.name}
@@ -568,7 +585,7 @@ async function CatalogDetailContent({ id }: CatalogDetailContentProps) {
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {item.compatibleWith.map((compatibleId) => (
-              <Link key={compatibleId} href={`/catalog/${compatibleId}`}>
+              <Link key={compatibleId} href={`/catalog/${compatibleId}?returnTo=${encodeURIComponent(fallbackHref)}`}>
                 <Badge variant="outline" className="hover:bg-muted">
                   {compatibleId}
                 </Badge>
