@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { WarmUpGate } from "@/components/common/warm-up-gate"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "sonner"
 import "./globals.css"
@@ -30,7 +31,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
        <TooltipProvider>
-         {children}
+         <WarmUpGate>{children}</WarmUpGate>
          <Toaster richColors position="top-right" />
        </TooltipProvider>
       </body>
