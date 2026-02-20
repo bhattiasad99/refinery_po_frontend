@@ -186,14 +186,20 @@ const initialCatalogViewState: CatalogViewState = {
 function catalogViewReducer(state: CatalogViewState, action: CatalogViewAction): CatalogViewState {
   switch (action.type) {
     case "syncFromUrl":
+      // Keep in-progress filter drafts unless URL-applied filters actually changed.
+      // This prevents unrelated URL updates (q/page/sort/limit) from wiping drafts in the sheet.
+      const hasCategoryChangedFromUrl = state.appliedCategory !== action.payload.categoryValue
+      const hasInStockChangedFromUrl = state.appliedInStock !== action.payload.inStockValue
       return {
         ...state,
         searchInput: action.payload.qValue,
         debouncedSearch: action.payload.qValue,
         appliedCategory: action.payload.categoryValue,
         appliedInStock: action.payload.inStockValue,
-        categoryDraft: action.payload.categoryValue,
-        inStockDraft: toInStockDraft(action.payload.inStockValue),
+        categoryDraft: hasCategoryChangedFromUrl ? action.payload.categoryValue : state.categoryDraft,
+        inStockDraft: hasInStockChangedFromUrl
+          ? toInStockDraft(action.payload.inStockValue)
+          : state.inStockDraft,
         sort: action.payload.sortValue,
         page: action.payload.pageValue,
         limit: normalizeLimit(action.payload.limitValue),
