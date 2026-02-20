@@ -40,10 +40,12 @@ export async function PUT(request: NextRequest, context: RouteContext): Promise<
   try {
     const { purchaseOrderId } = await context.params
     const payload = await request.json()
+    const idempotencyKey = request.headers.get("idempotency-key")?.trim() ?? ""
     const response = await apiFetch(`/purchase-orders/${encodeURIComponent(purchaseOrderId)}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       },
       body: JSON.stringify(payload),
     })

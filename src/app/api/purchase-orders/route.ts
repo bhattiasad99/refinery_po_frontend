@@ -32,10 +32,12 @@ export async function GET(): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const payload = await request.json()
+    const idempotencyKey = request.headers.get("idempotency-key")?.trim() ?? ""
     const response = await apiFetch("/purchase-orders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       },
       body: JSON.stringify(payload),
     })

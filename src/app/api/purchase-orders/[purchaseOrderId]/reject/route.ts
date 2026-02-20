@@ -13,11 +13,13 @@ type RouteContext = {
   }>
 }
 
-export async function POST(_request: Request, context: RouteContext): Promise<NextResponse> {
+export async function POST(request: Request, context: RouteContext): Promise<NextResponse> {
   try {
     const { purchaseOrderId } = await context.params
+    const idempotencyKey = request.headers.get("idempotency-key")?.trim() ?? ""
     const response = await apiFetch(`/purchase-orders/${encodeURIComponent(purchaseOrderId)}/reject`, {
       method: "POST",
+      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
     })
 
     const gatewayPayload = (await response.json()) as GatewayResponse<unknown>

@@ -148,11 +148,15 @@ async function parseResponse<T>(response: Response, fallbackMessage: string): Pr
   return body as T
 }
 
-export async function createPurchaseOrder(payload: PurchaseOrderWritePayload): Promise<PurchaseOrderApiResponse> {
+export async function createPurchaseOrder(
+  payload: PurchaseOrderWritePayload,
+  idempotencyKey?: string
+): Promise<PurchaseOrderApiResponse> {
   const response = await fetch("/api/purchase-orders", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: JSON.stringify(payload),
   })
@@ -161,12 +165,14 @@ export async function createPurchaseOrder(payload: PurchaseOrderWritePayload): P
 
 export async function updatePurchaseOrder(
   purchaseOrderId: string,
-  payload: PurchaseOrderWritePayload
+  payload: PurchaseOrderWritePayload,
+  idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
   const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: JSON.stringify(payload),
   })
@@ -178,30 +184,46 @@ export async function getPurchaseOrder(purchaseOrderId: string): Promise<Purchas
   return parseResponse<PurchaseOrderApiResponse>(response, "Failed to fetch purchase order")
 }
 
-export async function submitPurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
+export async function submitPurchaseOrder(
+  purchaseOrderId: string,
+  idempotencyKey?: string
+): Promise<PurchaseOrderApiResponse> {
   const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/submit`, {
     method: "POST",
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   })
   return parseResponse<PurchaseOrderApiResponse>(response, "Failed to submit purchase order")
 }
 
-export async function approvePurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
+export async function approvePurchaseOrder(
+  purchaseOrderId: string,
+  idempotencyKey?: string
+): Promise<PurchaseOrderApiResponse> {
   const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/approve`, {
     method: "POST",
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   })
   return parseResponse<PurchaseOrderApiResponse>(response, "Failed to approve purchase order")
 }
 
-export async function rejectPurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
+export async function rejectPurchaseOrder(
+  purchaseOrderId: string,
+  idempotencyKey?: string
+): Promise<PurchaseOrderApiResponse> {
   const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/reject`, {
     method: "POST",
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   })
   return parseResponse<PurchaseOrderApiResponse>(response, "Failed to reject purchase order")
 }
 
-export async function fulfillPurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrderApiResponse> {
+export async function fulfillPurchaseOrder(
+  purchaseOrderId: string,
+  idempotencyKey?: string
+): Promise<PurchaseOrderApiResponse> {
   const response = await fetch(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/fulfill`, {
     method: "POST",
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   })
   return parseResponse<PurchaseOrderApiResponse>(response, "Failed to fulfill purchase order")
 }
