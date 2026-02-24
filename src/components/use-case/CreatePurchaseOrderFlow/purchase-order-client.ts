@@ -1,6 +1,7 @@
 "use client"
 
 import { apiGet, apiPost, apiPut } from "@/lib/api"
+import { buildPurchaseOrderIdempotencyKey } from "@/lib/idempotency/purchase-order-idempotency"
 import {
   PAYMENT_TERM_OPTIONS,
   type PaymentMilestone,
@@ -116,11 +117,12 @@ export async function createPurchaseOrder(
   payload: PurchaseOrderWritePayload,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
+  const requestIdempotencyKey = idempotencyKey ?? buildPurchaseOrderIdempotencyKey("create")
   return apiPost<PurchaseOrderApiResponse>("/api/purchase-orders", {
     body: payload,
     fallbackErrorMessage: "Failed to create purchase order",
     headers: {
-      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      "Idempotency-Key": requestIdempotencyKey,
     },
   })
 }
@@ -130,11 +132,13 @@ export async function updatePurchaseOrder(
   payload: PurchaseOrderWritePayload,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
+  const requestIdempotencyKey =
+    idempotencyKey ?? buildPurchaseOrderIdempotencyKey("update", purchaseOrderId)
   return apiPut<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}`, {
     body: payload,
     fallbackErrorMessage: "Failed to update purchase order",
     headers: {
-      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      "Idempotency-Key": requestIdempotencyKey,
     },
   })
 }
@@ -149,9 +153,11 @@ export async function submitPurchaseOrder(
   purchaseOrderId: string,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
+  const requestIdempotencyKey =
+    idempotencyKey ?? buildPurchaseOrderIdempotencyKey("submit", purchaseOrderId)
   return apiPost<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/submit`, {
     fallbackErrorMessage: "Failed to submit purchase order",
-    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    headers: { "Idempotency-Key": requestIdempotencyKey },
   })
 }
 
@@ -159,9 +165,11 @@ export async function approvePurchaseOrder(
   purchaseOrderId: string,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
+  const requestIdempotencyKey =
+    idempotencyKey ?? buildPurchaseOrderIdempotencyKey("approve", purchaseOrderId)
   return apiPost<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/approve`, {
     fallbackErrorMessage: "Failed to approve purchase order",
-    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    headers: { "Idempotency-Key": requestIdempotencyKey },
   })
 }
 
@@ -169,9 +177,11 @@ export async function rejectPurchaseOrder(
   purchaseOrderId: string,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
+  const requestIdempotencyKey =
+    idempotencyKey ?? buildPurchaseOrderIdempotencyKey("reject", purchaseOrderId)
   return apiPost<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/reject`, {
     fallbackErrorMessage: "Failed to reject purchase order",
-    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    headers: { "Idempotency-Key": requestIdempotencyKey },
   })
 }
 
@@ -179,9 +189,11 @@ export async function fulfillPurchaseOrder(
   purchaseOrderId: string,
   idempotencyKey?: string
 ): Promise<PurchaseOrderApiResponse> {
+  const requestIdempotencyKey =
+    idempotencyKey ?? buildPurchaseOrderIdempotencyKey("fulfill", purchaseOrderId)
   return apiPost<PurchaseOrderApiResponse>(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/fulfill`, {
     fallbackErrorMessage: "Failed to fulfill purchase order",
-    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    headers: { "Idempotency-Key": requestIdempotencyKey },
   })
 }
 

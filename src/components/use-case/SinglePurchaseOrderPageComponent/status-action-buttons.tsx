@@ -4,7 +4,12 @@ import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { apiPost } from "@/lib/api"
+import {
+  approvePurchaseOrder,
+  fulfillPurchaseOrder,
+  rejectPurchaseOrder,
+  submitPurchaseOrder,
+} from "@/components/use-case/CreatePurchaseOrderFlow/purchase-order-client"
 
 type PurchaseOrderStatus = "draft" | "submitted" | "approved" | "rejected" | "fulfilled"
 
@@ -24,9 +29,20 @@ async function runStatusAction(
   purchaseOrderId: string,
   endpoint: ActionConfig["endpoint"],
 ): Promise<void> {
-  await apiPost(`/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}/${endpoint}`, {
-    fallbackErrorMessage: "Failed to update purchase order status",
-  })
+  if (endpoint === "submit") {
+    await submitPurchaseOrder(purchaseOrderId)
+    return
+  }
+  if (endpoint === "approve") {
+    await approvePurchaseOrder(purchaseOrderId)
+    return
+  }
+  if (endpoint === "reject") {
+    await rejectPurchaseOrder(purchaseOrderId)
+    return
+  }
+
+  await fulfillPurchaseOrder(purchaseOrderId)
 }
 
 function getActions(status: PurchaseOrderStatus): ActionConfig[] {

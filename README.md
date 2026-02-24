@@ -19,11 +19,13 @@
 - [Feature Highlights](#feature-highlights)
 - [Tech Stack](#tech-stack)
 - [Architecture Snapshot](#architecture-snapshot)
+- [Idempotency Control (Frontend)](#idempotency-control-frontend)
 - [Quick Start](#quick-start)
 - [Demo Login (Built-In)](#demo-login-built-in)
 - [Available Scripts](#available-scripts)
 - [Project Structure](#project-structure)
 - [Production Readiness Checklist](#production-readiness-checklist)
+- [Idempotency Sanity Checklist](#idempotency-sanity-checklist)
 - [Notes](#notes)
 
 ## Front-End Assignment Checklist (Refinery Purchase Order System)
@@ -113,6 +115,26 @@ flowchart LR
     PROXY --> UI
 ```
 
+## Idempotency Control (Frontend)
+
+All purchase-order mutating actions from the UI now include an `Idempotency-Key` header by default.
+
+Navigation map:
+
+- Key generation utility: `src/lib/idempotency/purchase-order-idempotency.ts`
+- Key generation tests: `src/lib/idempotency/purchase-order-idempotency.test.ts`
+- PO write client auto-header wiring:
+  - `src/components/use-case/CreatePurchaseOrderFlow/purchase-order-client.ts`
+- Status action buttons (submit/approve/reject/fulfill) routed through PO client:
+  - `src/components/use-case/SinglePurchaseOrderPageComponent/status-action-buttons.tsx`
+- Next.js API route passthrough to backend:
+  - `src/app/api/purchase-orders/route.ts`
+  - `src/app/api/purchase-orders/[purchaseOrderId]/route.ts`
+  - `src/app/api/purchase-orders/[purchaseOrderId]/submit/route.ts`
+  - `src/app/api/purchase-orders/[purchaseOrderId]/approve/route.ts`
+  - `src/app/api/purchase-orders/[purchaseOrderId]/reject/route.ts`
+  - `src/app/api/purchase-orders/[purchaseOrderId]/fulfill/route.ts`
+
 ## Quick Start
 
 ### 1. Prerequisites
@@ -185,6 +207,10 @@ src/
 - `npm run test` passes
 - `npm run build` succeeds
 - `API_GATEWAY_URL` points to reachable backend
+
+## Idempotency Sanity Checklist
+
+- Run: `IDEMPOTENCY_SANITY_CHECKLIST.md`
 
 ## Notes
 
