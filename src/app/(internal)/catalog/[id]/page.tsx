@@ -1,4 +1,6 @@
-import { Suspense } from "react"
+"use client"
+
+import { useMemo } from "react"
 import Link from "next/link"
 import {
   CircleCheckBig,
@@ -15,18 +17,13 @@ import {
   InternalHero,
   InternalPageTemplate,
 } from "@/components/templates/internal-page-template"
-import { apiFetch } from "@/lib/api-fetch"
+import { useMockAppData } from "@/lib/mock-data/context"
 import CatalogDetailLoading from "./loading"
 import { BackToResultsButton } from "./back-to-results-button"
 
 type CatalogDetailPageProps = {
-  params: Promise<{ id: string }>
-  searchParams: Promise<{ returnTo?: string }>
-}
-
-type GatewayResponse<T> = {
-  body?: T
-  message?: string
+  params: { id: string }
+  searchParams: { returnTo?: string }
 }
 
 type CatalogDetail = {
@@ -306,20 +303,6 @@ function renderValue(value: unknown): string {
   return String(value)
 }
 
-async function loadCatalogItem(id: string): Promise<CatalogDetail | null> {
-  const response = await apiFetch(`/catalog/${encodeURIComponent(id)}`)
-  const payload = (await response.json()) as GatewayResponse<unknown>
-
-  if (response.status === 404) {
-    return null
-  }
-  if (!response.ok) {
-    throw new Error(payload.message ?? "Failed to load catalog item")
-  }
-
-  return normalizeCatalogDetail(payload.body)
-}
-
 function resolveCatalogReturnHref(rawReturnTo: string | undefined): string {
   if (!rawReturnTo) {
     return "/catalog"
@@ -333,28 +316,21 @@ function resolveCatalogReturnHref(rawReturnTo: string | undefined): string {
   return trimmed
 }
 
-export default async function CatalogDetailPage({ params, searchParams }: CatalogDetailPageProps) {
-  const { id } = await params
-  const resolvedSearchParams = await searchParams
-  const fallbackHref = resolveCatalogReturnHref(resolvedSearchParams.returnTo)
-
-  return (
-    <Suspense fallback={<CatalogDetailLoading />}>
-      <CatalogDetailContent id={id} fallbackHref={fallbackHref} />
-    </Suspense>
+export default function CatalogDetailPage({ params, searchParams }: CatalogDetailPageProps) {
+  const { state } = useMockAppData()
+  const { id } = params
+  const fallbackHref = resolveCatalogReturnHref(searchParams.returnTo)
+  const item = useMemo(
+    () => normalizeCatalogDetail(state.catalogItems.find((entry) => entry.id === id) ?? null),
+    [id, state.catalogItems]
   )
-}
 
-type CatalogDetailContentProps = {
-  id: string
-  fallbackHref: string
-}
+  if (!state.catalogItems.length) {
+    return <CatalogDetailLoading />
+  }
 
-type SpecEntryValue = string | null
-type VisibleSpecEntryValue = string
-
-async function CatalogDetailContent({ id, fallbackHref }: CatalogDetailContentProps) {
-  const item = await loadCatalogItem(id)
+  type SpecEntryValue = string | null
+  type VisibleSpecEntryValue = string
 
   if (!item) {
     return (

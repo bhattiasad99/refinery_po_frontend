@@ -1,8 +1,8 @@
+import Link from "next/link"
+import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { logoutAction } from "@/app/actions/auth-actions"
-import { LogOut } from "lucide-react"
 
 export function SiteHeader() {
   return (
@@ -15,20 +15,20 @@ export function SiteHeader() {
         />
         {/* <h1 className="text-base font-medium">Documents</h1> */}
         <div className="ml-auto flex items-center gap-2">
-          <form action={logoutAction}>
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex" type="submit">
-              Logout
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="sm:hidden"
-              type="submit"
-              aria-label="Logout"
-            >
+          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+            <Link href="/login">Exit Demo</Link>
+          </Button>
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="sm:hidden"
+            aria-label="Exit demo"
+          >
+            <Link href="/login">
               <LogOut className="size-4" />
-            </Button>
-          </form>
+            </Link>
+          </Button>
         </div>
       </div>
     </header>

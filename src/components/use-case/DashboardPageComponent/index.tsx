@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import { ChartAreaInteractive, type PurchaseOrdersPerDayPoint } from "@/components/use-case/DashboardPageComponent/chart-area-interactive"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { apiGet } from "@/lib/api"
+import { useMockAppData } from "@/lib/mock-data/context"
+import { getDashboardStats } from "@/lib/mock-data/selectors"
 
 type DashboardStats = {
   totalPurchases: number
@@ -37,46 +38,19 @@ function formatCount(value: number): string {
   }).format(value)
 }
 
-async function loadDashboardStats(signal?: AbortSignal): Promise<DashboardStats> {
-  return apiGet<DashboardStats>("/api/purchase-orders/dashboard", {
-    cache: "no-store",
-    signal,
-    fallbackErrorMessage: "Failed to load dashboard data",
-  })
-}
-
 export default function DashboardPageComponent() {
+  const { state } = useMockAppData()
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      setStats(getDashboardStats(state.purchaseOrders) as DashboardStats)
+      setIsLoading(false)
+    }, 120)
 
-    const hydrate = async () => {
-      setIsLoading(true)
-      try {
-        const nextStats = await loadDashboardStats(controller.signal)
-        if (!controller.signal.aborted) {
-          setStats(nextStats)
-        }
-      } catch (error) {
-        if ((error as Error).name === "AbortError") {
-          return
-        }
-        if (!controller.signal.aborted) {
-          setStats(EMPTY_STATS)
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void hydrate()
-
-    return () => controller.abort()
-  }, [])
+    return () => window.clearTimeout(timeoutId)
+  }, [state.purchaseOrders])
 
   const cards = useMemo(
     () => [

@@ -27,10 +27,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ApiError, apiGet } from "@/lib/api"
 import { InternalHero, InternalPageTemplate } from "@/components/templates/internal-page-template"
 import { useDebounce } from "@/hooks/use-debounce"
 import { CreatePoFromCatalogModal, type CatalogRowForQuickPo } from "@/components/use-case/CatalogPageComponent/create-po-modal"
+import { useMockAppData } from "@/lib/mock-data/context"
+import { getCatalogFilterOptions, getCatalogList } from "@/lib/mock-data/selectors"
 
 type CatalogApiItem = {
   id: string
@@ -41,21 +42,6 @@ type CatalogApiItem = {
   priceUsd: number
   inStock: boolean
   description?: string | null
-}
-
-type CatalogListResponse = {
-  data: CatalogApiItem[]
-  total: number
-  page: number
-  limit: number
-  averageLeadTime: number
-  averagePrice: number
-  inStockCount: number
-}
-
-type CatalogFilterOptionsResponse = {
-  categories: string[]
-  suppliers: string[]
 }
 
 type CatalogSortOption =
@@ -294,6 +280,7 @@ function buildStateUrl(
 }
 
 export default function CatalogPageComponent() {
+  const { state } = useMockAppData()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -413,42 +400,32 @@ export default function CatalogPageComponent() {
       setErrorMessage(null)
 
       try {
-        const params = new URLSearchParams({
-          page: String(viewState.page),
-          limit: String(viewState.limit),
+        const catalogPayload = getCatalogList(state.catalogItems, {
+          page: viewState.page,
+          limit: viewState.limit,
           sort: viewState.sort,
+          q: viewState.debouncedSearch,
+          category: viewState.appliedCategory.trim(),
+          inStock: viewState.appliedInStock,
         })
-
-        if (viewState.debouncedSearch.length > 0) {
-          params.set("q", viewState.debouncedSearch)
-        }
-        if (viewState.appliedCategory.trim().length > 0) {
-          params.set("category", viewState.appliedCategory.trim())
-        }
-        if (viewState.appliedInStock !== null) {
-          params.set("inStock", String(viewState.appliedInStock))
-        }
-
-        const catalogPayload = await apiGet<CatalogListResponse>(`/api/catalog?${params.toString()}`, {
-          cache: "no-store",
-          signal,
-          fallbackErrorMessage: "Failed to load catalog",
-        })
-        setItems(Array.isArray(catalogPayload.data) ? catalogPayload.data : [])
+        setItems(
+          (Array.isArray(catalogPayload.data) ? catalogPayload.data : []).map((item) => ({
+            id: item.id,
+            name: item.name,
+            categoryName: item.categoryName,
+            supplierName: item.supplierName,
+            leadTimeDays: item.leadTimeDays,
+            priceUsd: item.priceUsd,
+            inStock: item.inStock,
+            description: item.description,
+          }))
+        )
         setTotal(Number.isFinite(catalogPayload.total) ? catalogPayload.total : 0)
         setAvgLeadTime(Number.isFinite(catalogPayload.averageLeadTime) ? catalogPayload.averageLeadTime : 0)
         setAvgPrice(Number.isFinite(catalogPayload.averagePrice) ? catalogPayload.averagePrice : 0)
         setInStockCount(Number.isFinite(catalogPayload.inStockCount) ? catalogPayload.inStockCount : 0)
         setHasLoadedOnce(true)
-      } catch (error) {
-        if ((error as Error).name === "AbortError") {
-          return
-        }
-        if (error instanceof ApiError) {
-          setErrorMessage(error.message)
-          setItems([])
-          return
-        }
+      } catch {
         setErrorMessage("Failed to load catalog")
         setItems([])
       } finally {
@@ -465,6 +442,7 @@ export default function CatalogPageComponent() {
       viewState.limit,
       viewState.page,
       viewState.sort,
+      state.catalogItems,
     ]
   )
 
@@ -473,22 +451,11 @@ export default function CatalogPageComponent() {
     setFilterOptionsError(null)
 
     try {
-      const optionsPayload = await apiGet<CatalogFilterOptionsResponse>("/api/catalog/filters", {
-        cache: "no-store",
-        signal,
-        fallbackErrorMessage: "Failed to load filter options",
-      })
+      const optionsPayload = getCatalogFilterOptions(state.catalogItems)
       setCategoryOptions(Array.isArray(optionsPayload.categories) ? optionsPayload.categories : [])
       setSupplierOptions(Array.isArray(optionsPayload.suppliers) ? optionsPayload.suppliers : [])
-    } catch (error) {
-      if ((error as Error).name === "AbortError") {
-        return
-      }
-      if (error instanceof ApiError) {
-        setFilterOptionsError(error.message)
-      } else {
-        setFilterOptionsError("Failed to load filter options")
-      }
+    } catch {
+      setFilterOptionsError("Failed to load filter options")
       setCategoryOptions([])
       setSupplierOptions([])
     } finally {
@@ -497,7 +464,7 @@ export default function CatalogPageComponent() {
       }
       setIsLoadingFilterOptions(false)
     }
-  }, [])
+  }, [state.catalogItems])
 
   useEffect(() => {
     const controller = new AbortController()

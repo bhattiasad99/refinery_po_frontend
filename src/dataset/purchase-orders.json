@@ -1,0 +1,293 @@
+[
+  {
+    "id": "PO-1001",
+    "status": "FULFILLED",
+    "createdAt": "2026-04-05T09:30:00.000Z",
+    "updatedAt": "2026-04-08T14:15:00.000Z",
+    "submittedAt": "2026-04-05T11:00:00.000Z",
+    "submittedBy": "amal.khan@refinery.com",
+    "approvedAt": "2026-04-06T09:00:00.000Z",
+    "approvedBy": "fatima.noor@refinery.com",
+    "rejectedAt": null,
+    "rejectedBy": null,
+    "fulfilledAt": "2026-04-08T14:15:00.000Z",
+    "fulfilledBy": "naveed.siddiqui@refinery.com",
+    "requestedByDepartment": "Supply Chain",
+    "requestedByUser": "amal.khan@refinery.com",
+    "budgetCode": "CC-1234",
+    "needByDate": "2026-04-20",
+    "supplierName": "Flexitallic",
+    "paymentTermId": "NET_30",
+    "paymentTermLabel": "Net 30",
+    "paymentTermDescription": "Full payment is due within 30 days after invoice date.",
+    "taxIncluded": true,
+    "advancePercentage": null,
+    "balanceDueInDays": null,
+    "customTerms": null,
+    "lineItems": [
+      {
+        "id": "PO-1001-L1",
+        "catalogItemId": "GST-0002",
+        "item": "Spiral Wound Gasket 4 in Class 300 RF, 316 SS/Graphite",
+        "supplier": "Flexitallic",
+        "category": "Gasket",
+        "description": "Replacement flange gasket",
+        "quantity": 10,
+        "unitPrice": 28,
+        "sortOrder": 0
+      },
+      {
+        "id": "PO-1001-L2",
+        "catalogItemId": "GST-0008",
+        "item": "PTFE Sheet Gasket Material, 1/16 in Thickness (60x60 in)",
+        "supplier": "Flexitallic",
+        "category": "Gasket",
+        "description": "Sheet stock for maintenance",
+        "quantity": 6,
+        "unitPrice": 18,
+        "sortOrder": 1
+      }
+    ],
+    "milestones": [],
+    "statusHistory": [
+      {
+        "id": "PO-1001-H1",
+        "fromStatus": null,
+        "toStatus": "SUBMITTED",
+        "changedBy": "amal.khan@refinery.com",
+        "changedAt": "2026-04-05T11:00:00.000Z"
+      },
+      {
+        "id": "PO-1001-H2",
+        "fromStatus": "SUBMITTED",
+        "toStatus": "APPROVED",
+        "changedBy": "fatima.noor@refinery.com",
+        "changedAt": "2026-04-06T09:00:00.000Z"
+      },
+      {
+        "id": "PO-1001-H3",
+        "fromStatus": "APPROVED",
+        "toStatus": "FULFILLED",
+        "changedBy": "naveed.siddiqui@refinery.com",
+        "changedAt": "2026-04-08T14:15:00.000Z"
+      }
+    ]
+  },
+  {
+    "id": "PO-1002",
+    "status": "APPROVED",
+    "createdAt": "2026-04-10T08:00:00.000Z",
+    "updatedAt": "2026-04-12T13:30:00.000Z",
+    "submittedAt": "2026-04-10T09:20:00.000Z",
+    "submittedBy": "naveed.siddiqui@refinery.com",
+    "approvedAt": "2026-04-12T13:30:00.000Z",
+    "approvedBy": "sara.ali@refinery.com",
+    "rejectedAt": null,
+    "rejectedBy": null,
+    "fulfilledAt": null,
+    "fulfilledBy": null,
+    "requestedByDepartment": "Supply Chain",
+    "requestedByUser": "naveed.siddiqui@refinery.com",
+    "budgetCode": "CC-2314",
+    "needByDate": "2026-04-28",
+    "supplierName": "Flowserve",
+    "paymentTermId": "ADVANCE",
+    "paymentTermLabel": "Advance",
+    "paymentTermDescription": "A percentage is paid upfront and the balance later.",
+    "taxIncluded": false,
+    "advancePercentage": 30,
+    "balanceDueInDays": 45,
+    "customTerms": null,
+    "lineItems": [
+      {
+        "id": "PO-1002-L1",
+        "catalogItemId": "VLV-0101",
+        "item": "Ball Valve 2 in Class 150",
+        "supplier": "Flowserve",
+        "category": "Valve",
+        "description": "Shutdown spare",
+        "quantity": 2,
+        "unitPrice": 2359,
+        "sortOrder": 0
+      }
+    ],
+    "milestones": [],
+    "statusHistory": [
+      {
+        "id": "PO-1002-H1",
+        "fromStatus": null,
+        "toStatus": "SUBMITTED",
+        "changedBy": "naveed.siddiqui@refinery.com",
+        "changedAt": "2026-04-10T09:20:00.000Z"
+      },
+      {
+        "id": "PO-1002-H2",
+        "fromStatus": "SUBMITTED",
+        "toStatus": "APPROVED",
+        "changedBy": "sara.ali@refinery.com",
+        "changedAt": "2026-04-12T13:30:00.000Z"
+      }
+    ]
+  },
+  {
+    "id": "PO-1003",
+    "status": "SUBMITTED",
+    "createdAt": "2026-04-13T10:10:00.000Z",
+    "updatedAt": "2026-04-13T12:00:00.000Z",
+    "submittedAt": "2026-04-13T12:00:00.000Z",
+    "submittedBy": "mustafa.raza@refinery.com",
+    "approvedAt": null,
+    "approvedBy": null,
+    "rejectedAt": null,
+    "rejectedBy": null,
+    "fulfilledAt": null,
+    "fulfilledBy": null,
+    "requestedByDepartment": "Product Management",
+    "requestedByUser": "mustafa.raza@refinery.com",
+    "budgetCode": "CC-4420",
+    "needByDate": "2026-05-02",
+    "supplierName": "Emerson",
+    "paymentTermId": "MILESTONE",
+    "paymentTermLabel": "Milestone-based",
+    "paymentTermDescription": "Payments are split against defined delivery milestones.",
+    "taxIncluded": true,
+    "advancePercentage": null,
+    "balanceDueInDays": null,
+    "customTerms": null,
+    "lineItems": [
+      {
+        "id": "PO-1003-L1",
+        "catalogItemId": "INS-0401",
+        "item": "Pressure Transmitter (0-300 psi)",
+        "supplier": "Emerson",
+        "category": "Instrumentation",
+        "description": "Process monitoring replacement",
+        "quantity": 3,
+        "unitPrice": 9800,
+        "sortOrder": 0
+      }
+    ],
+    "milestones": [
+      {
+        "id": "PO-1003-M1",
+        "label": "Factory acceptance",
+        "percentage": 50,
+        "dueInDays": 15,
+        "sortOrder": 0
+      },
+      {
+        "id": "PO-1003-M2",
+        "label": "Site delivery",
+        "percentage": 50,
+        "dueInDays": 45,
+        "sortOrder": 1
+      }
+    ],
+    "statusHistory": [
+      {
+        "id": "PO-1003-H1",
+        "fromStatus": null,
+        "toStatus": "SUBMITTED",
+        "changedBy": "mustafa.raza@refinery.com",
+        "changedAt": "2026-04-13T12:00:00.000Z"
+      }
+    ]
+  },
+  {
+    "id": "PO-1004",
+    "status": "REJECTED",
+    "createdAt": "2026-04-02T07:40:00.000Z",
+    "updatedAt": "2026-04-03T15:00:00.000Z",
+    "submittedAt": "2026-04-02T10:00:00.000Z",
+    "submittedBy": "bilal.ahmed@refinery.com",
+    "approvedAt": null,
+    "approvedBy": null,
+    "rejectedAt": "2026-04-03T15:00:00.000Z",
+    "rejectedBy": "fatima.noor@refinery.com",
+    "fulfilledAt": null,
+    "fulfilledBy": null,
+    "requestedByDepartment": "Support",
+    "requestedByUser": "bilal.ahmed@refinery.com",
+    "budgetCode": "CC-9901",
+    "needByDate": "2026-04-18",
+    "supplierName": "DeWalt",
+    "paymentTermId": "CUSTOM",
+    "paymentTermLabel": "Custom",
+    "paymentTermDescription": "Use custom free-text payment terms for special cases.",
+    "taxIncluded": false,
+    "advancePercentage": null,
+    "balanceDueInDays": null,
+    "customTerms": "Reject unless tool-room justification is attached.",
+    "lineItems": [
+      {
+        "id": "PO-1004-L1",
+        "catalogItemId": "TOL-0501",
+        "item": "Cordless Hammer Drill/Driver 18V XR",
+        "supplier": "DeWalt",
+        "category": "Hand Tool",
+        "description": "Maintenance workshop tool",
+        "quantity": 4,
+        "unitPrice": 129,
+        "sortOrder": 0
+      }
+    ],
+    "milestones": [],
+    "statusHistory": [
+      {
+        "id": "PO-1004-H1",
+        "fromStatus": null,
+        "toStatus": "SUBMITTED",
+        "changedBy": "bilal.ahmed@refinery.com",
+        "changedAt": "2026-04-02T10:00:00.000Z"
+      },
+      {
+        "id": "PO-1004-H2",
+        "fromStatus": "SUBMITTED",
+        "toStatus": "REJECTED",
+        "changedBy": "fatima.noor@refinery.com",
+        "changedAt": "2026-04-03T15:00:00.000Z"
+      }
+    ]
+  },
+  {
+    "id": "PO-1005",
+    "status": "DRAFT",
+    "createdAt": "2026-04-15T11:45:00.000Z",
+    "updatedAt": "2026-04-15T11:45:00.000Z",
+    "submittedAt": null,
+    "submittedBy": null,
+    "approvedAt": null,
+    "approvedBy": null,
+    "rejectedAt": null,
+    "rejectedBy": null,
+    "fulfilledAt": null,
+    "fulfilledBy": null,
+    "requestedByDepartment": "Engineering",
+    "requestedByUser": "hassan.malik@refinery.com",
+    "budgetCode": "CC-7603",
+    "needByDate": "2026-05-10",
+    "supplierName": "Alfa Laval",
+    "paymentTermId": "NET_45",
+    "paymentTermLabel": "Net 45",
+    "paymentTermDescription": "Full payment is due within 45 days after invoice date.",
+    "taxIncluded": false,
+    "advancePercentage": null,
+    "balanceDueInDays": null,
+    "customTerms": null,
+    "lineItems": [
+      {
+        "id": "PO-1005-L1",
+        "catalogItemId": "HEX-0304",
+        "item": "Plate Heat Exchanger, Semi-welded 80 sq ft",
+        "supplier": "Alfa Laval",
+        "category": "Heat Exchanger",
+        "description": "Pilot revamp package",
+        "quantity": 1,
+        "unitPrice": 20809,
+        "sortOrder": 0
+      }
+    ],
+    "milestones": [],
+    "statusHistory": []
+  }
+]

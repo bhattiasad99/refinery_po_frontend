@@ -1,0 +1,42 @@
+[
+  {
+    "id": "USR-001",
+    "email": "amal.khan@refinery.com",
+    "departmentId": "8"
+  },
+  {
+    "id": "USR-002",
+    "email": "naveed.siddiqui@refinery.com",
+    "departmentId": "8"
+  },
+  {
+    "id": "USR-003",
+    "email": "sara.ali@refinery.com",
+    "departmentId": "2"
+  },
+  {
+    "id": "USR-004",
+    "email": "hassan.malik@refinery.com",
+    "departmentId": "2"
+  },
+  {
+    "id": "USR-005",
+    "email": "fatima.noor@refinery.com",
+    "departmentId": "1"
+  },
+  {
+    "id": "USR-006",
+    "email": "bilal.ahmed@refinery.com",
+    "departmentId": "4"
+  },
+  {
+    "id": "USR-007",
+    "email": "zara.iqbal@refinery.com",
+    "departmentId": "5"
+  },
+  {
+    "id": "USR-008",
+    "email": "mustafa.raza@refinery.com",
+    "departmentId": "7"
+  }
+]

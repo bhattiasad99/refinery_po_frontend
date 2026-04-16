@@ -24,8 +24,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ApiError, apiGet } from "@/lib/api"
 import { InternalHero, InternalPageTemplate } from "@/components/templates/internal-page-template"
+import { useMockAppData } from "@/lib/mock-data/context"
+import { getSuppliersList } from "@/lib/mock-data/selectors"
 
 type SupplierCatalogItem = {
   id: string
@@ -42,13 +43,6 @@ type SupplierWithItems = {
   items: SupplierCatalogItem[]
 }
 
-type SuppliersListResponse = {
-  data: SupplierWithItems[]
-  total: number
-  page: number
-  limit: number
-}
-
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -58,6 +52,7 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 20, 50] as const
 
 export default function SuppliersPageComponent() {
+  const { state } = useMockAppData()
   const [suppliers, setSuppliers] = useState<SupplierWithItems[]>([])
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
@@ -91,33 +86,15 @@ export default function SuppliersPageComponent() {
       setErrorMessage(null)
 
       try {
-        const params = new URLSearchParams({
-          page: String(page),
-          limit: String(limit),
+        const suppliersPayload = getSuppliersList(state.catalogItems, {
+          page,
+          limit,
+          search,
         })
-
-        if (search.trim().length > 0) {
-          params.set("search", search.trim())
-        }
-
-        const suppliersPayload = await apiGet<SuppliersListResponse>(`/api/suppliers?${params.toString()}`, {
-          cache: "no-store",
-          signal,
-          fallbackErrorMessage: "Failed to load suppliers",
-        })
-
         setSuppliers(Array.isArray(suppliersPayload.data) ? suppliersPayload.data : [])
         setTotal(Number.isFinite(suppliersPayload.total) ? suppliersPayload.total : 0)
         setHasLoadedOnce(true)
-      } catch (error) {
-        if ((error as Error).name === "AbortError") {
-          return
-        }
-        if (error instanceof ApiError) {
-          setErrorMessage(error.message)
-          setSuppliers([])
-          return
-        }
+      } catch {
         setErrorMessage("Failed to load suppliers")
         setSuppliers([])
       } finally {
@@ -127,7 +104,7 @@ export default function SuppliersPageComponent() {
         setIsLoading(false)
       }
     },
-    [limit, page, search]
+    [limit, page, search, state.catalogItems]
   )
 
   useEffect(() => {

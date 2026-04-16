@@ -10,8 +10,8 @@ import SearchableDropdown, {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { apiGet } from "@/lib/api"
 import { buildStepOnePayload, createPurchaseOrder } from "@/components/use-case/CreatePurchaseOrderFlow/purchase-order-client"
+import { useMockAppData } from "@/lib/mock-data/context"
 
 export type CatalogRowForQuickPo = {
   id: string
@@ -20,17 +20,6 @@ export type CatalogRowForQuickPo = {
   supplierName: string
   priceUsd: number
   description?: string
-}
-
-type DepartmentApiItem = {
-  id?: string | null
-  name?: string | null
-}
-
-type UserApiItem = {
-  id?: string | null
-  email?: string | null
-  departmentId?: string | null
 }
 
 type CreatePoFromCatalogModalProps = {
@@ -49,6 +38,7 @@ export function CreatePoFromCatalogModal({
   catalogItem,
 }: CreatePoFromCatalogModalProps) {
   const router = useRouter()
+  const { state } = useMockAppData()
 
   const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([])
   const [users, setUsers] = useState<Array<{ id: string; email: string; departmentId: string }>>([])
@@ -75,31 +65,18 @@ export function CreatePoFromCatalogModal({
       setReferenceDataError(null)
 
       try {
-        const [departmentsResponse, usersResponse] = await Promise.all([
-          apiGet<DepartmentApiItem[]>("/api/departments", {
-            cache: "no-store",
-            signal: controller.signal,
-            fallbackErrorMessage: "Failed to fetch departments",
-          }),
-          apiGet<UserApiItem[]>("/api/users?limit=200", {
-            cache: "no-store",
-            signal: controller.signal,
-            fallbackErrorMessage: "Failed to fetch users",
-          }),
-        ])
-
         if (!isMounted) {
           return
         }
 
-        const nextDepartments = (Array.isArray(departmentsResponse) ? departmentsResponse : [])
+        const nextDepartments = state.departments
           .map((department) => ({
             id: normalizeString(department.id),
             name: normalizeString(department.name),
           }))
           .filter((department) => department.id.length > 0 && department.name.length > 0)
 
-        const nextUsers = (Array.isArray(usersResponse) ? usersResponse : [])
+        const nextUsers = state.users
           .map((user) => ({
             id: normalizeString(user.id),
             email: normalizeString(user.email),
@@ -109,18 +86,6 @@ export function CreatePoFromCatalogModal({
 
         setDepartments(nextDepartments)
         setUsers(nextUsers)
-      } catch (error) {
-        if ((error as Error).name === "AbortError") {
-          return
-        }
-
-        if (!isMounted) {
-          return
-        }
-
-        setDepartments([])
-        setUsers([])
-        setReferenceDataError(error instanceof Error ? error.message : "Failed to load form options")
       } finally {
         if (isMounted) {
           setIsLoadingReferenceData(false)
@@ -134,7 +99,7 @@ export function CreatePoFromCatalogModal({
       isMounted = false
       controller.abort()
     }
-  }, [open])
+  }, [open, state.departments, state.users])
 
   useEffect(() => {
     if (!open) {

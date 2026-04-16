@@ -1,3 +1,6 @@
+"use client"
+
+import { useMemo } from "react"
 import { CalendarClock, CircleCheckBig, CircleDashed, CircleX } from "lucide-react"
 
 import TableScrollContainer from "@/components/common/table-scroll-container"
@@ -8,16 +11,11 @@ import {
 } from "@/components/templates/internal-page-template"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { apiFetch } from "@/lib/api-fetch"
+import { useMockAppData } from "@/lib/mock-data/context"
 import StatusActionButtons from "./status-action-buttons"
 
 type IProps = {
   id: string
-}
-
-type GatewayResponse<T> = {
-  body?: T
-  message?: string
 }
 
 type PurchaseOrderLineItem = {
@@ -232,23 +230,6 @@ function mapPurchaseOrderToViewModel(purchaseOrder: PurchaseOrderApiRow): Purcha
   }
 }
 
-async function getPurchaseOrder(id: string): Promise<PurchaseOrderViewModel | null> {
-  const response = await apiFetch(`/purchase-orders/${encodeURIComponent(id)}`)
-  if (response.status === 404) {
-    return null
-  }
-  if (!response.ok) {
-    throw new Error("Failed to fetch purchase order")
-  }
-
-  const payload = (await response.json()) as GatewayResponse<PurchaseOrderApiRow>
-  if (!payload.body) {
-    return null
-  }
-
-  return mapPurchaseOrderToViewModel(payload.body)
-}
-
 const getStatusBadge = (status: PurchaseOrderViewModel["status"]) => {
   if (status === "fulfilled") {
     return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Fulfilled</Badge>
@@ -277,8 +258,12 @@ const getTimelineMeta = (_key: PurchaseOrderTimelineKey, entry: TimelineEntry) =
   return `By ${entry.actor}`
 }
 
-const SinglePurchaseOrderPageComponent = async ({ id }: IProps) => {
-  const purchaseOrder = await getPurchaseOrder(id)
+const SinglePurchaseOrderPageComponent = ({ id }: IProps) => {
+  const { state } = useMockAppData()
+  const purchaseOrder = useMemo(() => {
+    const rawPurchaseOrder = state.purchaseOrders.find((entry) => entry.id === id)
+    return rawPurchaseOrder ? mapPurchaseOrderToViewModel(rawPurchaseOrder as PurchaseOrderApiRow) : null
+  }, [id, state.purchaseOrders])
 
   if (!purchaseOrder) {
     return (

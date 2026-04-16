@@ -4,7 +4,6 @@ import { useEffect, useMemo, useReducer, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
-import { ApiError } from "@/lib/api"
 import { type PurchaseOrderLineItem, type StepTwoData } from "@/components/use-case/CreatePurchaseOrderFlow/draft-api"
 import { ItemSelectionModal } from "@/components/use-case/CreatePurchaseOrderFlow/item-selection-modal"
 import {
@@ -97,7 +96,7 @@ export default function CreatePurchaseOrderStepTwo({
       await updatePurchaseOrder(draftId, buildStepTwoPayload(values))
       router.push(`/purchase-orders/new/step-3/${draftId}`)
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
+      if (error instanceof Error && error.message === SUPPLIER_MISMATCH_MESSAGE) {
         setErrorMessage(SUPPLIER_MISMATCH_MESSAGE)
       } else {
         setErrorMessage(error instanceof Error ? error.message : "Failed to save step 2")

@@ -8,8 +8,9 @@ import { PlusCircle, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { apiGet } from "@/lib/api"
 import { getFeatureFlags } from "@/lib/feature-flags"
+import { useMockAppData } from "@/lib/mock-data/context"
+import { getPurchaseOrderListRows } from "@/lib/mock-data/selectors"
 
 import { KanbanColumnComponent } from "@/components/use-case/PurchaseOrdersPageComponent/kanban-column"
 import {
@@ -137,12 +138,7 @@ function applyOptimisticUpdate(board: KanbanBoardState, update: OptimisticKanban
   }
 }
 
-async function loadBoardFromApi(signal?: AbortSignal): Promise<KanbanBoardState> {
-  const rows = await apiGet<PurchaseOrderListRow[]>("/api/purchase-orders", {
-    cache: "no-store",
-    signal,
-    fallbackErrorMessage: "Failed to load purchase orders",
-  })
+async function loadBoardFromRows(rows: PurchaseOrderListRow[]): Promise<KanbanBoardState> {
   const purchaseOrders: KanbanBoardState["purchaseOrders"] = {}
   const columnBuckets: Record<KanbanColumnId, string[]> = {
     draft: [],
@@ -188,6 +184,7 @@ async function loadBoardFromApi(signal?: AbortSignal): Promise<KanbanBoardState>
 }
 
 export default function PurchaseOrdersPageComponent() {
+  const { state } = useMockAppData()
   const [board, setBoard] = useState<KanbanBoardState>(() => createEmptyBoard())
   const [isLoading, setIsLoading] = useState(true)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
@@ -203,34 +200,20 @@ export default function PurchaseOrdersPageComponent() {
       )
     }
 
-    const controller = new AbortController()
     const hydrateBoard = async () => {
       setIsLoading(true)
       try {
-        const nextBoard = await loadBoardFromApi(controller.signal)
-        if (!controller.signal.aborted) {
-          setBoard(nextBoard)
-          setHasLoadedOnce(true)
-        }
-      } catch (error) {
-        if ((error as Error).name === "AbortError") {
-          return
-        }
-        if (!controller.signal.aborted) {
-          setBoard(createEmptyBoard())
-        }
+        const nextBoard = await loadBoardFromRows(getPurchaseOrderListRows(state.purchaseOrders))
+        setBoard(nextBoard)
+        setHasLoadedOnce(true)
+      } catch {
+        setBoard(createEmptyBoard())
       } finally {
-        if (controller.signal.aborted) {
-          return
-        }
         setIsLoading(false)
       }
     }
     void hydrateBoard()
-    return () => {
-      controller.abort()
-    }
-  }, [])
+  }, [state.purchaseOrders])
 
   useEffect(() => {
     const handler = (event: Event) => {
